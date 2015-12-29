@@ -46,6 +46,9 @@ public:
 	uint16_t Write(char *buf, uint16_t len, sockaddr_in *server_addr_eth_);
 
 // Data members:
+	int tun_fd_;
+	int tun_type_;    		// TUN or TAP
+	char if_name_[IFNAMSIZ];
 
 	char server_ip_eth_[16];
 
