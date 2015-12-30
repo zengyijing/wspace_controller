@@ -27,22 +27,33 @@
 class Tun
 {
 public:
-	Tun(): port_eth_(PORT_ETH)
+	enum IOType
 	{
+		kTun=1,
+		kWspace, 
+		kCellular, 
+		kControl,
+	};
+
+	Tun(): tun_type_(IFF_TUN), port_eth_(PORT_ETH)
+	{
+		if_name_[0] = '\0';
 		server_ip_eth_[0] = '\0';
 		controller_ip_eth_[0] = '\0';
 	}
 
 	~Tun()
 	{
+		close(tun_fd_);
 	 	close(sock_fd_eth_);
 	}
 	
 	void InitSock();
+	int AllocTun(char *dev, int flags);
 	int CreateSock();
 	void BindSocket(int fd, sockaddr_in *addr);
 	void CreateAddr(const char *ip, int port, sockaddr_in *addr);
-	uint16_t Read(char *buf, uint16_t len);
+	uint16_t Read(const IOType &type, char *buf, uint16_t len);
 	uint16_t Write(char *buf, uint16_t len, sockaddr_in *server_addr_eth_);
 
 // Data members:

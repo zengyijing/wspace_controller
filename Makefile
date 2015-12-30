@@ -3,6 +3,7 @@
 # To remove files, type "make clean"
 #
 LIBS = -lpthread -lrt
+CXXFLAGS = -std=c++11
 all: wspace_controller
 
 wspace_controller: time_util.o monotonic_timer.o wspace_asym_util.o tun.o wspace_controller.o 

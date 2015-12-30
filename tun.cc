@@ -1,5 +1,37 @@
 #include "tun.h"
 
+int Tun::AllocTun(char *dev, int flags)
+{
+	struct ifreq ifr;
+	int fd, err;
+	char *clonedev = "/dev/net/tun";
+
+	if( (fd = open(clonedev , O_RDWR)) < 0 )
+	{
+		perror("Opening /dev/net/tun");
+		return fd;
+	}
+
+	memset(&ifr, 0, sizeof(ifr));
+
+	ifr.ifr_flags = flags;
+
+	if (*dev)
+	{
+		strncpy(ifr.ifr_name, dev, IFNAMSIZ);
+	}
+
+	if((err = ioctl(fd, TUNSETIFF, (void *)&ifr)) < 0 )
+	{
+		perror("ioctl(TUNSETIFF)");
+		close(fd);
+		return err;
+	}
+
+	strcpy(dev, ifr.ifr_name);
+	return fd;
+}
+
 void Tun::CreateAddr(const char *ip, int port, sockaddr_in *addr)
 {
 	memset(addr, 0, sizeof(sockaddr_in));
@@ -22,6 +54,12 @@ void Tun::BindSocket(int fd, sockaddr_in *addr)
 
 void Tun::InitSock()
 {
+	/* initialize tun/tap interface */
+	if ((tun_fd_ = AllocTun(if_name_, tun_type_ | IFF_NO_PI)) < 0 )
+	{
+		perror("Error connecting to tun/tap interface!");
+	}
+
 	// Create sockets
 	sock_fd_eth_ = CreateSock();
 
@@ -41,11 +79,13 @@ int Tun::CreateSock()
 	return sock_fd;
 }
 
-uint16_t Tun::Read(char *buf, uint16_t len)
+uint16_t Tun::Read(const IOType &type, char *buf, uint16_t len)
 {
 	uint16_t nread=-1;
-	socklen_t addr_len = sizeof(struct sockaddr_in);
-	nread = recvfrom(sock_fd_eth_, buf, len, 0, NULL, NULL);
+	if (type == kTun)
+		nread = cread(tun_fd_, buf, len);
+	else if (type == kControl)
+		nread = recvfrom(sock_fd_eth_, buf, len, 0, NULL, NULL);
 
 	assert(nread > 0);
 	return nread;

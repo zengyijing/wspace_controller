@@ -1,6 +1,10 @@
 #include <cmath>
 #include <time.h>
 #include <utility>
+#include <unordered_map>
+//#include <algorithm>
+//#include <iostream>
+
 #include "wspace_asym_util.h"
 #include "tun.h"
 
@@ -9,38 +13,42 @@ class BSStatsTable {
   BSStatsTable();		
   ~BSStatsTable();		
 
-  void Update(int bs, int client, double throughput);
+  void Update(int client, int bs, double throughput);
+  double FindStats(int client, int bs);
 
-  double FindStats(int bs, int client);
+  int FindMaxThroughputBS(int client);
+  vector<int> GetClients();
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
 
-  //unordered_map<int, unordered_map<int, double> > stats_;
-  vector<vector<double> > stats_;
+  unordered_map< int, unordered_map<int, double> > stats_; //form: <client_id, <bs_id, throughput>>
   pthread_mutex_t lock_;
   pthread_t p_recv_;
 };
 
 struct BSInfo {
-	string ip;
+	char ip[16];
 	int port;
 	int socket_id;
-	pthread_t p_forward_;
+//	pthread_t p_forward_;
 };
 
 class RoutingTable {
  public:
-  RoutingTable(int num_clients) {
-    route_.resize(num_clients);
-  }
+  RoutingTable(Tun &tun_);
+  ~RoutingTable();
 
-  ~RoutingTable() {}
+  void UpdateRoute(BSStatsTable &bs_stats_tbl);
 
  private:
-  vector<int> route_;
-  vector<BSInfo> bs_tbl_;
+  void Lock() { Pthread_mutex_lock(&lock_); }
+  void UnLock() { Pthread_mutex_unlock(&lock_); }
+
+  unordered_map<int, int> route_; //form: <client_id, bs_id>
+  unordered_map<int, BSInfo> bs_tbl_;
+  pthread_mutex_t lock_;
 };
 
 class WspaceController
@@ -53,9 +61,8 @@ public:
 	void* ComputeRoute(void *arg);
 	void* Forward(void *arg);
 
-
 // Data member
-	pthread_t p_recv_stats_, p_compute_route_;
+	pthread_t p_recv_stats_, p_compute_route_, p_forward_;
 
 	BSStatsTable bs_stats_tbl_;
 	RoutingTable routing_tbl_;	
@@ -64,5 +71,5 @@ public:
 
 /** Wrapper function for pthread_create. */
 void* LaunchRecvStats(void* arg);
-void* LaunchSelectBS(void* arg);
-
+void* LaunchComputeRoute(void* arg);
+void* LaunchForward(void* arg);
