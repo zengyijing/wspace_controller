@@ -24,6 +24,8 @@
 #define PORT_ETH 55554
 #define PORT_ATH 55555
 
+#define MAX_SERVER 3
+
 class Tun
 {
 public:
@@ -37,9 +39,11 @@ public:
 
 	Tun(): tun_type_(IFF_TUN), port_eth_(PORT_ETH)
 	{
-		if_name_[0] = '\0';
-		server_ip_eth_[0] = '\0';
-		controller_ip_eth_[0] = '\0';
+		bzero(if_name_, sizeof(if_name_));
+		bzero(server_ip_eth_, sizeof(server_ip_eth_));
+		bzero(server_ip_tun_, sizeof(server_ip_tun_));
+		bzero(controller_ip_eth_, sizeof(controller_ip_eth_));
+		server_count_ = 0;
 	}
 
 	~Tun()
@@ -54,14 +58,16 @@ public:
 	void BindSocket(int fd, sockaddr_in *addr);
 	void CreateAddr(const char *ip, int port, sockaddr_in *addr);
 	uint16_t Read(const IOType &type, char *buf, uint16_t len);
-	uint16_t Write(char *buf, uint16_t len, sockaddr_in *server_addr_eth_);
+	uint16_t Write(const IOType &type, char *buf, uint16_t len, sockaddr_in *server_addr_eth_);
 
 // Data members:
 	int tun_fd_;
 	int tun_type_;    		// TUN or TAP
 	char if_name_[IFNAMSIZ];
 
-	char server_ip_eth_[16];
+	char server_ip_eth_[MAX_SERVER][16];
+	char server_ip_tun_[MAX_SERVER][16];
+	int server_count_;
 
 	struct sockaddr_in server_addr_eth_; 
 	uint16_t port_eth_;

@@ -29,7 +29,8 @@ class BSStatsTable {
 };
 
 struct BSInfo {
-	char ip[16];
+	char ip_eth[16];
+	char ip_tun[16];
 	int port;
 	int socket_id;
 //	pthread_t p_forward_;
@@ -37,10 +38,13 @@ struct BSInfo {
 
 class RoutingTable {
  public:
-  RoutingTable(Tun &tun_);
+  RoutingTable();
   ~RoutingTable();
 
-  void UpdateRoute(BSStatsTable &bs_stats_tbl);
+  void Init(Tun &tun_);
+  void UpdateRoute(BSStatsTable &bs_stats_tbl, Tun &tun_);
+  BSInfo* GetRoute(int dest_id);
+  bool IsBS(int dest_id);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
