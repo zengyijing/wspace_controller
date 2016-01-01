@@ -149,13 +149,17 @@ void RoutingTable::UpdateRoute(BSStatsTable &bs_stats_tbl, Tun &tun_)
 	UnLock();
 }
 
-BSInfo* RoutingTable::GetRoute(int dest_id)
+BSInfo RoutingTable::GetRoute(int dest_id)
 {
+	BSInfo info;
+	Lock();
 	int bs_id = route_[dest_id];
-	printf("route_[%d]: %d\n", dest_id, route_[dest_id]);
-	return &bs_tbl_[bs_id];
+	info = bs_tbl_[bs_id];
+	UnLock();
+	//printf("route_[%d]: %d\n", dest_id, route_[dest_id]);
+	return info;
 }
-
+/*
 bool RoutingTable::IsBS(int dest_id)
 {
 	if (route_[dest_id] == dest_id)
@@ -163,7 +167,7 @@ bool RoutingTable::IsBS(int dest_id)
 	else
 		return false;
 }
-
+*/
 int main(int argc, char **argv)
 {
 	const char* opts = "C:i:S:s:";
@@ -266,14 +270,15 @@ WspaceController::~WspaceController()
 void* WspaceController::RecvStats(void* arg)
 {
 	uint16 nread=0;
-	char *buf = new char[PKT_SIZE];
+	char *pkt = new char[PKT_SIZE];
 	while (1)
 	{
-		nread = tun_.Read(Tun::kControl, buf, PKT_SIZE);
-		if (buf[0] == STAT_DATA && nread == sizeof(BSStatsPkt))
+		nread = tun_.Read(Tun::kControl, pkt, PKT_SIZE);
+		//printf("pkt header: %d\n", (int)pkt[0]);
+		if (pkt[0] == STAT_DATA && nread == sizeof(BSStatsPkt))
 		{
 			BSStatsPkt stats_pkt;
-			memcpy(&stats_pkt, buf, sizeof(BSStatsPkt));
+			memcpy(&stats_pkt, pkt, sizeof(BSStatsPkt));
 			static uint32 current_seq = 0;
 			uint32 seq;
 			int bs_id;
@@ -286,10 +291,13 @@ void* WspaceController::RecvStats(void* arg)
 				bs_stats_tbl_.Update(client_id, bs_id, throughput);
 			}
 		}
-		else if (buf[0] == CONTROL_BS)
-			tun_.Write(Tun::kTun, buf + 1, nread - 1, NULL);
+		else if (pkt[0] == CONTROL_BS)
+		{
+			//printf("received control_bs message.\n");
+			tun_.Write(Tun::kTun, pkt + 1, nread - 1, NULL);
+		}
 	}
-	delete[] buf;
+	delete[] pkt;
 
 	return (void*)NULL;
 }
@@ -312,34 +320,47 @@ void* WspaceController::Forward(void* arg)
 	char *pkt = new char[PKT_SIZE];
 
 	char ip_tun[16] = {0};
-	char ip_eth[16] = {0};
 	int dest_id = 0;
 	struct in_addr addr;
 	struct sockaddr_in server_addr_eth;
-	BSInfo* info;
+	BSInfo info;
 	while (1)
 	{
 		len = tun_.Read(Tun::kTun, pkt + 1, PKT_SIZE - 1);
 		memcpy(&addr.s_addr, pkt + 1 + 16, sizeof(long));//suppose it's a IP packet and get the destination inner IP address like 10.0.0.2
 		strncpy(ip_tun, inet_ntoa(addr), 16);
-		printf("read %d bytes from tun to %s\n", len, ip_tun);
+		//printf("read %d bytes from tun to %s\n", len, ip_tun);
 		dest_id = atoi(strrchr(ip_tun,'.') + 1);
-		printf("dest_id: %d\n", dest_id);
+		//printf("dest_id: %d\n", dest_id);
 		info = routing_tbl_.GetRoute(dest_id);
-		strncpy(ip_eth, info->ip_eth, 16);
-		tun_.CreateAddr(ip_eth, info->port, &server_addr_eth);
-		printf("convert address to %s\n", info->ip_eth);
-		if(routing_tbl_.IsBS(dest_id))
+		if(strlen(info.ip_eth)!=0)
 		{
-			*pkt = CONTROL_BS;
-			printf("is to BS\n");
+			tun_.CreateAddr(info.ip_eth, info.port, &server_addr_eth);
+			//printf("convert address to %s\n", info.ip_eth);
+			//if(routing_tbl_.IsBS(dest_id))
+			if(dest_id < 128)	//currently bs_id in 2 ~ 127
+			{
+				*pkt = CONTROL_BS;
+				//printf("is to BS\n");
+			}
+			else			//client_id 128 ~ 254
+			{
+				*pkt = FORWARD_DATA;
+				//printf("is to client\n");
+			}
+			tun_.Write(Tun::kControl, pkt, len + 1, &server_addr_eth);
 		}
-		else
+		else	//no route to destination
 		{
-			*pkt = FORWARD_DATA;
-			printf("is to client\n");
+			printf("currently no route to destination\n");
+			for(int i = 0; i < tun_.server_count_; i++)
+			{
+				printf("broadcast through %s/%s\n", tun_.server_ip_eth_[i], tun_.server_ip_tun_[i]);
+				tun_.CreateAddr(tun_.server_ip_eth_[i], PORT_ETH, &server_addr_eth);
+				*pkt = FORWARD_DATA;
+				tun_.Write(Tun::kControl, pkt, len + 1, &server_addr_eth);
+			}
 		}
-		tun_.Write(Tun::kControl, pkt, len + 1, &server_addr_eth);
 	}
 	delete[] pkt;
 

@@ -16,7 +16,7 @@ wspace_controller: time_util.o monotonic_timer.o wspace_asym_util.o tun.o wspace
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 clean:
-	rm -rf wspace_ap_scout *.o 
+	rm -rf wspace_controller *.o 
 
 tag: 
 	ctags -R *

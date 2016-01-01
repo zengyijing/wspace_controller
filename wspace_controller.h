@@ -43,8 +43,8 @@ class RoutingTable {
 
   void Init(Tun &tun_);
   void UpdateRoute(BSStatsTable &bs_stats_tbl, Tun &tun_);
-  BSInfo* GetRoute(int dest_id);
-  bool IsBS(int dest_id);
+  BSInfo GetRoute(int dest_id);
+  //bool IsBS(int dest_id);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
