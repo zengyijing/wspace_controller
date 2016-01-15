@@ -91,7 +91,7 @@ uint16_t Tun::Read(const IOType &type, char *buf, uint16_t len)
 	return nread;
 }
 
-uint16_t Tun::Write(const IOType &type, char *buf, uint16_t len, sockaddr_in *server_addr_eth_)
+uint16_t Tun::Write(const IOType &type, char *buf, uint16_t len, sockaddr_in *server_addr_eth)
 {
 	uint16_t nwrite=-1;
 	assert(len > 0);
@@ -99,7 +99,7 @@ uint16_t Tun::Write(const IOType &type, char *buf, uint16_t len, sockaddr_in *se
 	if (type == kTun)
 		nwrite = cwrite(tun_fd_, buf, len);
 	else if (type == kControl)
-		nwrite = sendto(sock_fd_eth_, buf, len, 0, (struct sockaddr*)server_addr_eth_, addr_len);
+		nwrite = sendto(sock_fd_eth_, buf, len, 0, (struct sockaddr*)server_addr_eth, addr_len);
 
 	assert(nwrite == len);
 	return nwrite;

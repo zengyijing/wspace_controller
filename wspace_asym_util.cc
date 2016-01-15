@@ -629,6 +629,8 @@ void BSStatsPkt::Init(char type, uint32 seq, int bs_id, int client_id, double th
 
 void BSStatsPkt::ParsePkt(uint32 *seq, int *bs_id, int *client_id, double *throughput) const
 {
+	// This is contrived and memcpy brings unnecessary dependency of data type. Simply use
+	// *seq = seq_. Please correct all of them.
 	memcpy(seq, &seq_, sizeof(uint32));
 	memcpy(bs_id, &bs_id_, sizeof(int));
 	memcpy(client_id, &client_id_, sizeof(int));

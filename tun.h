@@ -24,6 +24,8 @@
 #define PORT_ETH 55554
 #define PORT_ATH 55555
 
+// @yijing: is it needed? Also, if it's needed by the controller, it should be 
+// defined in controller.h.
 #define MAX_SERVER 3
 
 class Tun
@@ -58,25 +60,25 @@ public:
 	void BindSocket(int fd, sockaddr_in *addr);
 	void CreateAddr(const char *ip, int port, sockaddr_in *addr);
 	uint16_t Read(const IOType &type, char *buf, uint16_t len);
-	uint16_t Write(const IOType &type, char *buf, uint16_t len, sockaddr_in *server_addr_eth_);
+	uint16_t Write(const IOType &type, char *buf, uint16_t len, sockaddr_in *server_addr_eth);
 
 // Data members:
 	int tun_fd_;
 	int tun_type_;    		// TUN or TAP
 	char if_name_[IFNAMSIZ];
 
+	// @yijing: change name to bs_ip_eth_ and bs_ip_tun_.
 	char server_ip_eth_[MAX_SERVER][16];
 	char server_ip_tun_[MAX_SERVER][16];
 	int server_count_;
 
+	// @yijing: do you need server_addr? 
 	struct sockaddr_in server_addr_eth_; 
 	uint16_t port_eth_;
 	int sock_fd_eth_;
 
-	//modified by Zeng
 	char controller_ip_eth_[16];
 	struct sockaddr_in controller_addr_eth_;
-	//end modification
 };
 
 int cread(int fd, char *buf, int n);

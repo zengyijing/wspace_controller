@@ -23,16 +23,16 @@ class BSStatsTable {
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
 
-  unordered_map< int, unordered_map<int, double> > stats_; //form: <client_id, <bs_id, throughput>>
+  unordered_map<int, unordered_map<int, double> > stats_; //form: <client_id, <bs_id, throughput>>
   pthread_mutex_t lock_;
-  pthread_t p_recv_;
+  pthread_t p_recv_; // @yijing: Is this used?
 };
 
 struct BSInfo {
-	char ip_eth[16];
-	char ip_tun[16];
-	int port;
-	int socket_id;
+  char ip_eth[16];
+  char ip_tun[16];
+  int port;
+  int socket_id;
 //	pthread_t p_forward_;
 };
 
@@ -40,40 +40,44 @@ class RoutingTable {
  public:
   RoutingTable();
   ~RoutingTable();
-
+	
+	// @yijing: Never expose data member e.g., tun_ to the outside world.
+	// See my comments in .cc for fix.
+	// Also add const for a reference type if you don't intend to
+	// modify its content, e.g., const Tun &tun.
   void Init(Tun &tun_);
-  void UpdateRoute(BSStatsTable &bs_stats_tbl, Tun &tun_);
-  BSInfo GetRoute(int dest_id);
+  void UpdateRoutes(BSStatsTable &bs_stats_tbl, Tun &tun_);
+  bool FindRoute(int dest_id, BSInfo *info);
   //bool IsBS(int dest_id);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
 
-  unordered_map<int, int> route_; //form: <client_id, bs_id>
+  unordered_map<int, int> route_;  // <client_id, bs_id>.
   unordered_map<int, BSInfo> bs_tbl_;
   pthread_mutex_t lock_;
 };
 
 class WspaceController
 {
-public:
-	WspaceController(int argc, char *argv[], const char *optstring);
-	~WspaceController();
+ public:
+  WspaceController(int argc, char *argv[], const char *optstring);
+  ~WspaceController() {}
 	
-	void* RecvStats(void *arg);
-	void* ComputeRoute(void *arg);
-	void* Forward(void *arg);
+  void* RecvStats(void *arg);
+  void* ComputeRoutes(void *arg);
+  void* Forward(void *arg);
 
 // Data member
-	pthread_t p_recv_stats_, p_compute_route_, p_forward_;
+  pthread_t p_recv_stats_, p_compute_route_, p_forward_;
 
-	BSStatsTable bs_stats_tbl_;
-	RoutingTable routing_tbl_;	
-	Tun tun_;
+  BSStatsTable bs_stats_tbl_;
+  RoutingTable routing_tbl_;	
+  Tun tun_;
 };
 
 /** Wrapper function for pthread_create. */
 void* LaunchRecvStats(void* arg);
-void* LaunchComputeRoute(void* arg);
+void* LaunchComputeRoutes(void* arg);
 void* LaunchForward(void* arg);

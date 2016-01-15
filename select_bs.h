@@ -1,3 +1,4 @@
+// @yijing: Remove select_bs* file if they are not in use.
 #ifndef SELECT_BS_H_
 #define SELECT_BS_H_
 

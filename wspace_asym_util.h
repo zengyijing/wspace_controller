@@ -33,12 +33,13 @@ static const int kMaxRawBufSize = 4000;
 #define RAW_BACK_ACK 5
 #define CELL_DATA 6
 #define GPS 7
-
-//modified by Zeng
+// @yijing: make packet type names specific
+// #define BS_STATS 8
+// #define CONTROLLER_TO_CLIENT 9
+// #define CLIENT_TO_CONTROLLER 10
 #define STAT_DATA 8
 #define FORWARD_DATA 9
 #define CONTROL_BS 10
-//end modification
 
 #define INVALID_SEQ_NUM 0
 #define INVALID_LOSS_RATE (-1)
@@ -81,8 +82,6 @@ enum Status
 	kOccupiedOutbound = 4,     /** a packet transmitted but does not got ack. */
 };
 	
-
-//modified by Zeng
 enum Laptop
 {
 	kInvalid = 0, 
@@ -91,8 +90,6 @@ enum Laptop
 	kFrontScout = 3,
 	kAfterCombine = 4,
 };
-//end modification
-
 
 typedef struct
 {
@@ -699,7 +696,6 @@ inline void AckPkt::PushNack(uint32 seq)
 	ack_hdr_.num_nacks_++;
 }
 
-//modified by Zeng
 class BSStatsPkt
 {
 public:
@@ -718,7 +714,6 @@ public:
 	int client_id_;
 	double throughput_;
 };
-//end modification
 
 inline uint32 Seq2Ind(uint32 seq)
 {
