@@ -14,7 +14,7 @@ class BSStatsTable {
   ~BSStatsTable();    
 
   void Update(int client_id, int radio_id, int bs_id, double throughput);
-  int FindMaxThroughputBS(const int client_id, const int radio_id);
+  bool FindMaxThroughputBS(int client_id, int radio_id, int *bs_id);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
@@ -60,10 +60,7 @@ class WspaceController
   void* ComputeRoutes(void *arg);
   void* ForwardToBS(void *arg);
 
-  void Init() {
-    tun_.InitSock();
-    routing_tbl_.Init(tun_);
-  }
+  void Init();
   void ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table);
 
 // Data member

@@ -52,7 +52,7 @@ void BSStatsTable::Update(int client_id, int radio_id, int bs_id, double through
   UnLock();
 }
 
-int BSStatsTable::FindMaxThroughputBS(const int client_id, const int radio_id) {
+bool BSStatsTable::FindMaxThroughputBS(int client_id, int radio_id, int *bs_id) {
   Lock();
   auto max_p = make_pair(-1, -1.0);
   if (stats_.count(client_id) != 0) {
@@ -62,8 +62,12 @@ int BSStatsTable::FindMaxThroughputBS(const int client_id, const int radio_id) {
       }
     }
   }
+  *bs_id = max_p.first;
   UnLock();
-  return max_p.first;
+  if (max_p.first == 0 || max_p.first == -1)
+    return false;
+  else
+    return true;
 }
 
 RoutingTable::RoutingTable() {
@@ -98,13 +102,14 @@ void RoutingTable::Init(const Tun &tun) {
 
 void RoutingTable::UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_stats_tbl) {
   Lock();
-  for (auto it = client_ids.begin(); it != client_ids.end(); ++it) {
-    int bs_id = bs_stats_tbl.FindMaxThroughputBS(*it, Laptop::kFront); //TODO:right now hard code radio_id
-    if (bs_id > 0) {
-      route_[*it] = bs_id;
-      printf("route to %d is through %d\n", *it, route_[*it]);
+  for (auto client_id : client_ids) {
+    int bs_id;
+    bool is_route_available = bs_stats_tbl.FindMaxThroughputBS(client_id, Laptop::kFront, &bs_id); // TODO:Enable dynamically assignment of a radio number.
+    if (is_route_available) {
+      route_[client_id] = bs_id;
+      printf("route to %d is through %d\n", client_id, route_[client_id]);
     } else {
-      printf("no route to %d currently\n", *it);
+      printf("no route to %d currently\n", client_id);
     }
   }
   UnLock();
@@ -182,19 +187,23 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
 }
 
 void WspaceController::ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table) {
-  if (ids.size() > 0) {
-    auto it = ids.begin();
-    string addr;
-    stringstream ss(optarg);
-    while(getline(ss, addr, ',')) {
-      if (it == ids.end())
-        Perror("Too many input addresses\n");
-      strncpy(ip_table[*it], addr.c_str(), 16);
-      ++it;
-    }
-  } else {
+  if (ids.empty()) {
     Perror("Need to indicate ids first!\n");
   }
+  auto it = ids.begin();
+  string addr;
+  stringstream ss(optarg);
+  while(getline(ss, addr, ',')) {
+    if (it == ids.end())
+      Perror("Too many input addresses\n");
+    strncpy(ip_table[*it], addr.c_str(), 16);
+    ++it;
+  }
+}
+
+void WspaceController::Init() {
+  tun_.InitSock();
+  routing_tbl_.Init(tun_);
 }
 
 void* WspaceController::RecvFromBS(void* arg) {
@@ -219,7 +228,7 @@ void* WspaceController::RecvFromBS(void* arg) {
         current_seq[bs_id] = seq;
         bs_stats_tbl_.Update(client_id, radio_id, bs_id, throughput);
       } else {
-        Perror("Received invalid BSStatsPkt\n");
+        Perror("WspaceController::RecvFromBS: Received invalid BSStatsPkt\n");
       }
     }
 
@@ -249,7 +258,7 @@ void* WspaceController::ForwardToBS(void* arg) {
   struct in_addr bs_addr;
   struct sockaddr_in bs_addr_eth;
   BSInfo info;
-
+  ControllerToClientHeader hdr;
   while (1) {
     len = tun_.Read(Tun::kTun, pkt + sizeof(ControllerToClientHeader), PKT_SIZE - sizeof(ControllerToClientHeader));
     memcpy(&bs_addr.s_addr, pkt + sizeof(ControllerToClientHeader) + 16, sizeof(long));//suppose it's a IP packet and get the destination inner IP address like 10.0.0.2
@@ -257,8 +266,7 @@ void* WspaceController::ForwardToBS(void* arg) {
     //printf("read %d bytes from tun to %s\n", len, ip_tun);
     dest_id = atoi(strrchr(ip_tun,'.') + 1);
     printf("dest_id: %d\n", dest_id);
-    ControllerToClientHeader hdr;
-    hdr.SetClientID(dest_id);
+    hdr.set_client_id(dest_id);
     memcpy(pkt, &hdr, sizeof(ControllerToClientHeader));
     if(tun_.client_ip_tbl_.count(dest_id) == 0)
       Perror("Traffic to a client not specified!\n");
@@ -266,14 +274,12 @@ void* WspaceController::ForwardToBS(void* arg) {
     if (is_route_available) {
       tun_.CreateAddr(info.ip_eth, info.port, &bs_addr_eth);
       //printf("convert address to %s\n", info.ip_eth);
-      *pkt = CONTROLLER_TO_CLIENT;
       tun_.Write(Tun::kControl, pkt, len + sizeof(ControllerToClientHeader), &bs_addr_eth);
     } else {
       printf("No route to the client[%d]\n", dest_id);
       for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
         printf("broadcast through bs %d/%s\n", it->first, it->second);
         tun_.CreateAddr(it->second, PORT_ETH, &bs_addr_eth);
-        *pkt = CONTROLLER_TO_CLIENT;
         tun_.Write(Tun::kControl, pkt, len + sizeof(ControllerToClientHeader), &bs_addr_eth);
       }
     }

@@ -507,20 +507,6 @@ class CellDataHeader {
   char type_;
 }; 
 
-class ControllerToClientHeader {
- public:
-  ControllerToClientHeader(): type_(CONTROLLER_TO_CLIENT) {
-  }
-  ~ControllerToClientHeader() {}
-
-  void SetClientID(int id) { client_id_ = id; }
-
-// Data
- private:
-  char type_;
-  int client_id_;
-};
-
 class AckHeader {
  public:
   AckHeader() : ack_seq_(0), num_nacks_(0), start_nack_seq_(0), end_seq_(0), num_pkts_(0) {}
@@ -572,6 +558,22 @@ private:
   double latitude_;
   double longitude_;
   double speed_; 
+};
+
+class ControllerToClientHeader {
+ public:
+  ControllerToClientHeader(): type_(CONTROLLER_TO_CLIENT) {
+  }
+  ~ControllerToClientHeader() {}
+
+  void set_client_id(int id) { client_id_ = id; }
+  int get_client_id() { return client_id_; }
+  char get_type() { return type_; }
+
+// Data
+ private:
+  char type_;
+  int client_id_;
 };
 
 class GPSLogger {
