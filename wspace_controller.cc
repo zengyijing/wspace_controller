@@ -87,11 +87,10 @@ void RoutingTable::Init(const Tun &tun) {
     printf("eth ip:%s, tun ip:%s \n", info.ip_eth, info.ip_tun);
     info.port = PORT_ETH;
     info.socket_id = tun.sock_fd_eth_;
-    int bs_id = it->first;
-    printf("bs_id: %d\n", bs_id);
-    bs_tbl_[bs_id] = info;
-    route_[bs_id] = bs_id;    //route to bs 
-    printf("route_[%d]: %d\n", bs_id, route_[bs_id]);
+    printf("bs_id: %d\n", it->first);
+    bs_tbl_[it->first] = info;
+    route_[it->first] = it->first;    //route to bs 
+    printf("route_[%d]: %d\n", it->first, route_[it->first]);
   }
 
   UnLock();
