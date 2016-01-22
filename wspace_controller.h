@@ -14,15 +14,13 @@ class BSStatsTable {
   ~BSStatsTable();    
 
   void Update(int client_id, int radio_id, int bs_id, double throughput);
-  //double FindStats(int client, int bs);
-
   int FindMaxThroughputBS(const int client_id, const int radio_id);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
 
-  unordered_map<int, unordered_map<int, unordered_map<int, double> > > stats_; //form: <client_id, <radio_id, <bs_id, throughput>>>
+  unordered_map<int, unordered_map<int, unordered_map<int, double> > > stats_; // <client_id, <radio_id, <bs_id, throughput>>>.
   pthread_mutex_t lock_;
 };
 
@@ -40,7 +38,7 @@ class RoutingTable {
   ~RoutingTable();
   
   void Init(const Tun &tun);
-  void UpdateRoutes(const Tun &tun, BSStatsTable &bs_stats_tbl);
+  void UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_stats_tbl);
   bool FindRoute(int dest_id, BSInfo *info);
 
  private:
@@ -62,13 +60,21 @@ class WspaceController
   void* ComputeRoutes(void *arg);
   void* ForwardToBS(void *arg);
 
+  void Init() {
+    tun_.InitSock();
+    routing_tbl_.Init(tun_);
+  }
+  void ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table);
+
 // Data member
   pthread_t p_recv_from_bs_, p_compute_route_, p_forward_to_bs_;
 
   BSStatsTable bs_stats_tbl_;
   RoutingTable routing_tbl_;  
   Tun tun_;
-  uint32 update_route_interval_;
+  uint32 update_route_interval_; // in milliseconds.
+  vector<int> bs_ids_;
+  vector<int> client_ids_;
 };
 
 /** Wrapper function for pthread_create. */

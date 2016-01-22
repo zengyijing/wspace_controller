@@ -33,8 +33,9 @@ static const int kMaxRawBufSize = 4000;
 #define RAW_BACK_ACK 5
 #define CELL_DATA 6
 #define GPS 7
-#define STAT_DATA 8
-#define FORWARD_DATA 9
+#define BS_STATS 8
+#define CONTROLLER_TO_CLIENT 9
+#define CLIENT_TO_CONTROLLER 10
 
 #define INVALID_SEQ_NUM 0
 #define INVALID_LOSS_RATE (-1)
@@ -505,6 +506,20 @@ class CellDataHeader {
 // Data
   char type_;
 }; 
+
+class ControllerToClientHeader {
+ public:
+  ControllerToClientHeader(): type_(CONTROLLER_TO_CLIENT) {
+  }
+  ~ControllerToClientHeader() {}
+
+  void SetClientID(int id) { client_id_ = id; }
+
+// Data
+ private:
+  char type_;
+  int client_id_;
+};
 
 class AckHeader {
  public:

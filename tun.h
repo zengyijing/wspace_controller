@@ -60,8 +60,8 @@ class Tun {
   int tun_type_;        // TUN or TAP
   char if_name_[IFNAMSIZ];
 
-  unordered_map< int, char [16] > bs_ip_tbl_; //form: <bs_id, bs_ip_eth_>
-  unordered_map< int, char [16] > client_ip_tbl_; //form: <client_id, client_ip_eth_>
+  unordered_map<int, char [16]> bs_ip_tbl_; // <bs_id, bs_ip_eth_>.
+  unordered_map<int, char [16]> client_ip_tbl_; // <client_id, client_ip_eth_>.
 
   uint16_t port_eth_;
   int sock_fd_eth_;

@@ -64,7 +64,6 @@ uint8 BasicBuf::GetNumDups(uint32 index) const {
   return book_keep_arr_[index].num_dups;
 }
 
-//////////add by Lei
 void BasicBuf::UpdateRateInBookKeeping(uint32 index, uint16 rate) {
   if (index < 0 || index > BUF_SIZE-1) {
     Perror("UpdateBookKeeping invalid index: %d\n", index);
@@ -79,9 +78,6 @@ void BasicBuf::GetRateFromBookKeeping(uint32 index, uint16* rate, uint16* len) {
   *rate = book_keep_arr_[index].seq_num; 
   *len = book_keep_arr_[index].len; 
 }
-
-///////////////////////
-
 
 void BasicBuf::UpdateBookKeeping(uint32 index, uint32 seq_num, Status status, uint16 len, 
         uint8 num_retrans, bool update_timestamp) {
@@ -542,7 +538,7 @@ int AckContext::WaitFill(int wait_ms) {
 }
 
 void BSStatsPkt::Init(uint32 seq, int bs_id, int client_id, int radio_id, double throughput) {
-  type_ = STAT_DATA;
+  type_ = BS_STATS;
   seq_ = seq;
   bs_id_ = bs_id;
   client_id_ = client_id;
