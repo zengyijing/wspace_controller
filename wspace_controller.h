@@ -1,3 +1,6 @@
+#ifndef WSPACE_CONTROLLER_H_
+#define WSPACE_CONTROLLER_H_ 
+
 #include <cmath>
 #include <time.h>
 #include <unordered_map>
@@ -75,3 +78,5 @@ class WspaceController
 void* LaunchRecvFromBS(void* arg);
 void* LaunchComputeRoutes(void* arg);
 void* LaunchForwardToBS(void* arg);
+
+#endif
