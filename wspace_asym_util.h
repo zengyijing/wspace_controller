@@ -562,15 +562,13 @@ private:
 
 class ControllerToClientHeader {
  public:
-  ControllerToClientHeader(): type_(CONTROLLER_TO_CLIENT) {
-  }
+  ControllerToClientHeader(): type_(CONTROLLER_TO_CLIENT) {}
   ~ControllerToClientHeader() {}
 
   void set_client_id(int id) { client_id_ = id; }
-  int get_client_id() { return client_id_; }
+  int client_id() { return client_id_; }
   char get_type() { return type_; }
 
-// Data
  private:
   char type_;
   int client_id_;

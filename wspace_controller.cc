@@ -53,21 +53,19 @@ void BSStatsTable::Update(int client_id, int radio_id, int bs_id, double through
 }
 
 bool BSStatsTable::FindMaxThroughputBS(int client_id, int radio_id, int *bs_id) {
-  Lock();
   auto max_p = make_pair(-1, -1.0);
-  if (stats_.count(client_id) != 0) {
+  Lock();
+  bool found = stats_.count(client_id);
+  if (found) {
     for (const auto &p : stats_[client_id][radio_id]) {
       if (p.second > max_p.second) {
         max_p = p;
       }
     }
   }
-  *bs_id = max_p.first;
   UnLock();
-  if (max_p.first == 0 || max_p.first == -1)
-    return false;
-  else
-    return true;
+  *bs_id = max_p.first;
+  return found;
 }
 
 RoutingTable::RoutingTable() {
@@ -103,7 +101,7 @@ void RoutingTable::Init(const Tun &tun) {
 void RoutingTable::UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_stats_tbl) {
   Lock();
   for (auto client_id : client_ids) {
-    int bs_id;
+    int bs_id = 0;
     bool is_route_available = bs_stats_tbl.FindMaxThroughputBS(client_id, Laptop::kFront, &bs_id); // TODO:Enable dynamically assignment of a radio number.
     if (is_route_available) {
       route_[client_id] = bs_id;
@@ -188,14 +186,14 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
 
 void WspaceController::ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table) {
   if (ids.empty()) {
-    Perror("Need to indicate ids first!\n");
+    Perror("WspaceController::ParseIP: Need to indicate ids first!\n");
   }
   auto it = ids.begin();
   string addr;
   stringstream ss(optarg);
   while(getline(ss, addr, ',')) {
     if (it == ids.end())
-      Perror("Too many input addresses\n");
+      Perror("WspaceController::ParseIP: Too many input addresses\n");
     strncpy(ip_table[*it], addr.c_str(), 16);
     ++it;
   }
