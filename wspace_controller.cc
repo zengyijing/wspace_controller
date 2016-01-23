@@ -102,7 +102,7 @@ void RoutingTable::UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_
   Lock();
   for (auto client_id : client_ids) {
     int bs_id = 0;
-    bool is_route_available = bs_stats_tbl.FindMaxThroughputBS(client_id, Laptop::kFront, &bs_id); // TODO:Enable dynamically assignment of a radio number.
+    bool is_route_available = bs_stats_tbl.FindMaxThroughputBS(client_id, Laptop::kBack, &bs_id); // TODO:Enable dynamically assignment of a radio number. Default radio_id is kBack.
     if (is_route_available) {
       route_[client_id] = bs_id;
       printf("route to %d is through %d\n", client_id, route_[client_id]);
@@ -113,12 +113,13 @@ void RoutingTable::UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_
   UnLock();
 }
 
-bool RoutingTable::FindRoute(int dest_id, BSInfo *info) {
+bool RoutingTable::FindRoute(int dest_id, int* bs_id, BSInfo *info) {
   bool found = false;
   Lock();
   found = route_.count(dest_id);
   if (found) {
-      *info = bs_tbl_[route_[dest_id]];
+      *bs_id = route_[dest_id];
+      *info = bs_tbl_[*bs_id];
   }
   UnLock();
   return found;
@@ -226,6 +227,7 @@ void* WspaceController::RecvFromBS(void* arg) {
         current_seq[bs_id] = seq;
         bs_stats_tbl_.Update(client_id, radio_id, bs_id, throughput);
       } else {
+        printf("tun_.bs_ip_tbl_.count(bs_id):%d, tun_.client_ip_tbl_.count(client_id):%d, current_seq[bs_id]:%d, seq:%d, bs_id:%d, client_id:%d\n", tun_.bs_ip_tbl_.count(bs_id), tun_.client_ip_tbl_.count(client_id), current_seq[bs_id], seq, bs_id, client_id);
         Perror("WspaceController::RecvFromBS: Received invalid BSStatsPkt\n");
       }
     }
@@ -265,16 +267,19 @@ void* WspaceController::ForwardToBS(void* arg) {
     dest_id = atoi(strrchr(ip_tun,'.') + 1);
     printf("dest_id: %d\n", dest_id);
     hdr.set_client_id(dest_id);
-    memcpy(pkt, &hdr, sizeof(ControllerToClientHeader));
     if(tun_.client_ip_tbl_.count(dest_id) == 0)
       Perror("Traffic to a client not specified!\n");
-    bool is_route_available = routing_tbl_.FindRoute(dest_id, &info);
+    int bs_id = 0;
+    bool is_route_available = routing_tbl_.FindRoute(dest_id, &bs_id, &info);
     if (is_route_available) {
       tun_.CreateAddr(info.ip_eth, info.port, &bs_addr_eth);
       //printf("convert address to %s\n", info.ip_eth);
+      hdr.set_bs_id(bs_id);
+      memcpy(pkt, &hdr, sizeof(ControllerToClientHeader));
       tun_.Write(Tun::kControl, pkt, len + sizeof(ControllerToClientHeader), &bs_addr_eth);
     } else {
       printf("No route to the client[%d]\n", dest_id);
+      memcpy(pkt, &hdr, sizeof(ControllerToClientHeader));
       for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
         printf("broadcast through bs %d/%s\n", it->first, it->second);
         tun_.CreateAddr(it->second, PORT_ETH, &bs_addr_eth);
