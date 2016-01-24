@@ -102,7 +102,7 @@ void RoutingTable::UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_
   Lock();
   for (auto client_id : client_ids) {
     int bs_id = 0;
-    bool is_route_available = bs_stats_tbl.FindMaxThroughputBS(client_id, Laptop::kFront, &bs_id); // TODO:Enable dynamically assignment of a radio number.
+    bool is_route_available = bs_stats_tbl.FindMaxThroughputBS(client_id, Laptop::kBack, &bs_id); // TODO:Enable dynamically assignment of a radio number. Default radio_id is kBack.
     if (is_route_available) {
       route_[client_id] = bs_id;
       printf("route to %d is through %d\n", client_id, route_[client_id]);
@@ -113,12 +113,13 @@ void RoutingTable::UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_
   UnLock();
 }
 
-bool RoutingTable::FindRoute(int dest_id, BSInfo *info) {
+bool RoutingTable::FindRoute(int dest_id, int* bs_id, BSInfo *info) {
   bool found = false;
   Lock();
   found = route_.count(dest_id);
   if (found) {
-      *info = bs_tbl_[route_[dest_id]];
+      *bs_id = route_[dest_id];
+      *info = bs_tbl_[*bs_id];
   }
   UnLock();
   return found;
@@ -228,11 +229,9 @@ void* WspaceController::RecvFromBS(void* arg) {
       } else {
         Perror("WspaceController::RecvFromBS: Received invalid BSStatsPkt\n");
       }
-    }
-
-    else if (pkt[0] == CELL_DATA) {
+    } else if (pkt[0] == CELL_DATA) {
       //printf("received uplink data message.\n");
-      tun_.Write(Tun::kTun, pkt + 1, nread - 1, NULL);
+      tun_.Write(Tun::kTun, pkt + CELL_DATA_HEADER_SIZE, nread - CELL_DATA_HEADER_SIZE, NULL);
     }
   }
   delete[] pkt;
@@ -268,7 +267,8 @@ void* WspaceController::ForwardToBS(void* arg) {
     memcpy(pkt, &hdr, sizeof(ControllerToClientHeader));
     if(tun_.client_ip_tbl_.count(dest_id) == 0)
       Perror("Traffic to a client not specified!\n");
-    bool is_route_available = routing_tbl_.FindRoute(dest_id, &info);
+    int bs_id = 0;
+    bool is_route_available = routing_tbl_.FindRoute(dest_id, &bs_id, &info);
     if (is_route_available) {
       tun_.CreateAddr(info.ip_eth, info.port, &bs_addr_eth);
       //printf("convert address to %s\n", info.ip_eth);

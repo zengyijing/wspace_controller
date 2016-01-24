@@ -39,7 +39,7 @@ class RoutingTable {
   
   void Init(const Tun &tun);
   void UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_stats_tbl);
-  bool FindRoute(int dest_id, BSInfo *info);
+  bool FindRoute(int dest_id, int* bs_id, BSInfo *info);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
