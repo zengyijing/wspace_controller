@@ -6,7 +6,7 @@ vector<string> rx_pkts;
 void* LaunchEnqueue(void* arg) {
   vector<string> *pkts = (vector<string> *)arg;
   for (auto pkt : *pkts) {
-	pkt_queue->PushPkt(pkt.c_str(), pkt.size());
+	pkt_queue->Enqueue(pkt.c_str(), pkt.size());
 	cout << "Push pkt: " << pkt << endl;
 	sleep(1);
   }
@@ -18,7 +18,7 @@ void* LaunchDequeue(void* arg) {
   size_t len = 0;
   vector<string> *tx_pkts = (vector<string> *)arg;
   while (rx_pkts.size() < tx_pkts->size()) {
-    bool found = pkt_queue->PopPkt(buf, (uint16_t*)&len);
+    bool found = pkt_queue->Dequeue(buf, (uint16_t*)&len);
     cout << "Found: " << found << " pkt: " << string(buf, len) << endl;
     if (found) {
       rx_pkts.push_back(string(buf, len));
