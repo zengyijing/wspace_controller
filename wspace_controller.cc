@@ -226,16 +226,12 @@ void* WspaceController::RecvFromBS(void* arg) {
       if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id] < seq) {
         current_seq[bs_id] = seq;
         bs_stats_tbl_.Update(client_id, radio_id, bs_id, throughput);
-        printf("received valid bsstats pkt\n");
       } else {
-        printf("tun_.bs_ip_tbl_.count(bs_id):%d, tun_.client_ip_tbl_.count(client_id):%d, current_seq[bs_id]:%d, seq:%d, bs_id:%d, client_id:%d\n", tun_.bs_ip_tbl_.count(bs_id), tun_.client_ip_tbl_.count(client_id), current_seq[bs_id], seq, bs_id, client_id);
         Perror("WspaceController::RecvFromBS: Received invalid BSStatsPkt\n");
       }
-    }
-
-    else if (pkt[0] == CELL_DATA) {
+    } else if (pkt[0] == CELL_DATA) {
       //printf("received uplink data message.\n");
-      tun_.Write(Tun::kTun, pkt + 1, nread - 1, NULL);
+      tun_.Write(Tun::kTun, pkt + CELL_DATA_HEADER_SIZE, nread - CELL_DATA_HEADER_SIZE, NULL);
     }
   }
   delete[] pkt;
