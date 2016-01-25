@@ -70,6 +70,7 @@ class WspaceController
   RoutingTable routing_tbl_;  
   Tun tun_;
   uint32 update_route_interval_; // in milliseconds.
+  unordered_map<int, uint32> client_seqs_;
   vector<int> bs_ids_;
   vector<int> client_ids_;
 };
