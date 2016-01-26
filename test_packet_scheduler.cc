@@ -13,16 +13,20 @@ void* LaunchEnqueue(void* arg) {
 }
 
 void* LaunchDequeue(void* arg) {
-  sleep(10);
-  char buf[1500] = {0};
-  size_t len = 0;
+  sleep(3);
+  char *buf = NULL;
+  size_t len = 0, len1 = 0;
   vector<string> *tx_pkts = (vector<string> *)arg;
   while (rx_pkts.size() < tx_pkts->size()) {
-    bool found = pkt_queue->Dequeue(buf, (uint16_t*)&len);
-    cout << "Found: " << found << " pkt: " << string(buf, len) << endl;
-    if (found) {
-      rx_pkts.push_back(string(buf, len));
-    }
+    len = pkt_queue->PeekTopPktSize();
+    if (len) {
+	  pkt_queue->Dequeue(&buf, (uint16_t*)&len1);
+      assert(len == len1);
+      string s(buf, len);
+	  cout << "Pop pkt: " << s << endl;
+	  rx_pkts.push_back(s);
+      delete[] buf;
+    };
     usleep(100000);
   }      
 }

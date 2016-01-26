@@ -1,5 +1,4 @@
 #include <algorithm>
-
 #include "packet_scheduler.h"
 
 PktQueue::PktQueue(size_t max_size) : kMaxSize(max_size) {
@@ -35,7 +34,7 @@ void PktQueue::Enqueue(const char *pkt, uint16_t len) {
 
 void PktQueue::Dequeue(char **buf, uint16_t *len) {
   Lock();
-  assert(!q_.empty());
+  assert(!IsEmpty());
   *buf  = q_.front().first;
   *len = q_.front().second; 
   q_.pop();
@@ -43,16 +42,12 @@ void PktQueue::Dequeue(char **buf, uint16_t *len) {
   UnLock();
 }
 
-bool PktQueue::IsEmpty() { 
+uint16_t PktQueue::PeekTopPktSize() {
+  uint16_t len = 0;
   Lock();
-  bool is_empty = q_.empty(); 
-  UnLock();
-  return is_empty;
-}
-
-uint16_t PktQueue::PeekHeadSize() {
-  Lock();
-  uint16_t len = q_.front().second;
+  if (!IsEmpty()) {
+    len = q_.front().second;
+  }
   UnLock();
   return len;
 }
@@ -67,11 +62,13 @@ ActiveList::~ActiveList() {
   Pthread_cond_destroy(&fill_cond_);
 }
 
-void ActiveList::Add(int id) {
+void ActiveList::Append(int id) {
   Lock();
-  ids_.push(id);
-  exist_.insert(id);
-  SignalFill();
+  if (exist_.count(id) == 0) {
+	ids_.push(id);
+	exist_.insert(id);
+    SignalFill();
+  }
   UnLock();
 }
 
@@ -94,21 +91,24 @@ PktScheduler::PktScheduler(double min_throughput,
                            const FairnessMode &fairness_mode) 
     : kMinThroughput(min_throughput), client_ids_(client_ids), 
       round_interval_(round_interval), fairness_mode_(fairness_mode) {
-  for (auto client_id : client_ids) {
-    queues_[client_id] = PktQueue(pkt_queue_size);
+  for (auto client_id : client_ids_) {
+    queues_[client_id] = new PktQueue(pkt_queue_size);
     stats_[client_id].quantum = round_interval_/client_ids_.size(); 
-    stats_[client_id].throughputs = kMinThroughput;  // At least 1Mbps.
+    stats_[client_id].throughput = kMinThroughput;  // At least 1Mbps.
   }
   Pthread_mutex_init(&lock_, NULL);
 }
 
 PktScheduler::~PktScheduler() {
+  for (auto client_id : client_ids_) {
+    delete queues_[client_id];
+  }
   Pthread_mutex_destroy(&lock_);
 }
 
 void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id) {
-  queues_[client_id].Enqueue(pkt, len); 
-  active_list_.Add(client_id);
+  queues_[client_id]->Enqueue(pkt, len); 
+  active_list_.Append(client_id);
 }
 
 void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > &pkts, int *client_id) {
@@ -118,16 +118,16 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > &pkts, int *client_id)
   stats_[*client_id].counter += stats_[*client_id].quantum;
   char *pkt = NULL;
   uint16_t len = 0;
-  while (!queues_[*client_id].IsEmpty() && 
-          queues_[*client_id].PeekHeadSize() < stats_[*client_id].counter) {
-    queues_.Dequeue(&pkt, &len);
+  while ((len = queues_[*client_id]->PeekTopPktSize()) > 0) {
+    if (len > stats_[*client_id].counter) break;
+    queues_[*client_id]->Dequeue(&pkt, &len);
     pkts.push_back({pkt, len});
-    stats_[*client_id].counter -= queues_[*client_id].PeekHeadSize();
+    stats_[*client_id].counter -= len;
   } 
-  if (queues_[*client_id].IsEmpty()) {
+  if (len == 0) {  // Empty queue.
     stats_[*client_id].counter = 0;
   } else {
-    active_list_.Add(*client_id);
+    active_list_.Append(*client_id);
   }
   UnLock();
 }
@@ -135,7 +135,7 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > &pkts, int *client_id)
 void PktScheduler::UpdateStatus(const unordered_map<int, double> &throughputs) {
   Lock();
   for (const auto &p : throughputs) {
-    stats_[p.first] = max(kMinThroughput, p.second);
+    stats_[p.first].throughput = max(kMinThroughput, p.second);
   }
   ComputeQuantum();
   UnLock();
@@ -158,6 +158,6 @@ void PktScheduler::ComputeQuantumThroughputFair() {
     total_throughput += stats_[client_id].throughput;
   }
   for (auto client_id : client_ids_) {
-    stats_[client_id].quantum = (int)stat_[client_id].throughput / total_throughput * round_interval_;
+    stats_[client_id].quantum = (int)stats_[client_id].throughput / total_throughput * round_interval_;
   }
 }

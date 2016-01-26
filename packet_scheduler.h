@@ -10,29 +10,29 @@
 
 #include "pthread_wrapper.h"
 
-#define MAX_PKT_SIZE 1500
-
 using namespace std;
 
 class PktQueue {
  public:
+  PktQueue() : kMaxSize(0) {}
   PktQueue(size_t max_size);
   ~PktQueue();
 
   void Enqueue(const char *pkt, uint16_t len);
-  // Note: Depend on the caller to deallocate buf.
+  // Note: The caller needs to deallocate buf.
   void Dequeue(char **buf, uint16_t *len);
-  bool IsEmpty();
-  uint16_t PeekHeadSize();
+  // With lock. Return 0 if the queue is empty.
+  uint16_t PeekTopPktSize();
 
  private:
   bool IsFull() { return q_.size() == kMaxSize; }
+  bool IsEmpty() { return q_.empty(); }
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
   void WaitEmpty() { Pthread_cond_wait(&empty_cond_, &lock_); }
   void SignalEmpty() { Pthread_cond_signal(&empty_cond_); }
 
-  const size_t kMaxSize;
+  size_t kMaxSize;
   queue<pair<char*, uint16_t> > q_;  // <Packet buffer address, length>.
   pthread_mutex_t lock_;
   pthread_cond_t empty_cond_;
@@ -44,8 +44,9 @@ class ActiveList {
   ActiveList();
   ~ActiveList();
 
-  void Add(int id);
-  // Remove oldest id from the list.
+  // Append id to the end when the id doesn't exist.
+  void Append(int id);
+  // Remove the oldest id from the list.
   int Remove(); 
 
  private:
@@ -67,35 +68,39 @@ class PktScheduler {
     kThroughputFair = 0,
   };
 
-  PktScheduler(double min_throughput);
+  struct Status {
+    double throughput;
+    int quantum;
+    int counter;
+    Status() : throughput(0.0), quantum(0), counter(0) {} 
+  }; 
+
+  PktScheduler(double min_throughput, 
+			   const vector<int> &client_ids, 
+			   uint32_t pkt_queue_size,
+			   uint32_t round_interval, 
+			   const FairnessMode &fairness_mode);
   ~PktScheduler();
 
   void Enqueue(const char *pkt, uint16_t len, int client_id);
-  void Dequeue(char *buf, uint16_t *len, int *client_id);
+  void Dequeue(vector<pair<char*, uint16_t> > &pkts, int *client_id);
   void UpdateStatus(const unordered_map<int, double> &throughputs);
-  // No lock for stats.
+  // No lock.
   void ComputeQuantum();
 
   void set_fairness_mode(const FairnessMode &mode) { fairness_mode_ = mode; }
   FairnessMode fairness_mode() const { return fairness_mode_; }
 
  private:
+  // No lock.
+  void ComputeQuantumThroughputFair();
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
 
-  struct Status {
-    double throughput;
-    uint32_t quantum:
-    uint32_t counter:
-    Status() : throughput(0.0), quantum(0), counter(0) {} 
-  }; 
-
-  void ComputeQuantumThroughputFair();
-
   const double kMinThroughput;
   vector<int> client_ids_;
-  unordered_map<int, PktQueue> queues_;   // <client_id, pkt_queue>.
-  unordered_map<int, Status>   stats_;    // <client_id, status>. 
+  unordered_map<int, PktQueue*> queues_;   // <client_id, pkt_queue>.
+  unordered_map<int, Status>    stats_;    // <client_id, status>. 
   ActiveList active_list_;
   // Duration of scheduling all the clients per round in microseconds.
   uint32_t round_interval_;
