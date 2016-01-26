@@ -84,6 +84,11 @@ int ActiveList::Remove() {
   return id;
 }
 
+bool operator==(const PktScheduler::Status &l, const PktScheduler::Status &r) {
+  return l.throughput == r.throughput && l.quantum == r.quantum && 
+         l.counter == r.counter;
+}
+
 PktScheduler::PktScheduler(double min_throughput, 
                            const vector<int> &client_ids, 
                            uint32_t pkt_queue_size,
@@ -111,18 +116,22 @@ void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id) {
   active_list_.Append(client_id);
 }
 
-void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > &pkts, int *client_id) {
+void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id) {
   *client_id = active_list_.Remove();
-  pkts.clear();
+  pkts->clear();
   Lock();
   stats_[*client_id].counter += stats_[*client_id].quantum;
   char *pkt = NULL;
   uint16_t len = 0;
   while ((len = queues_[*client_id]->PeekTopPktSize()) > 0) {
-    if (len > stats_[*client_id].counter) break;
+    int pkt_duration = len * 8.0 / stats_[*client_id].throughput;
+    // Not enough time to send this packet.
+    if (stats_[*client_id].counter < pkt_duration) break;  
     queues_[*client_id]->Dequeue(&pkt, &len);
-    pkts.push_back({pkt, len});
-    stats_[*client_id].counter -= len;
+    pkts->push_back({pkt, len});
+    stats_[*client_id].counter -= pkt_duration;
+    //printf("PktScheduler::Dequeue: %d len: %u cnt: %u\n",
+    //       *client_id, pkt_duration, stats_[*client_id].counter);
   } 
   if (len == 0) {  // Empty queue.
     stats_[*client_id].counter = 0;
@@ -132,17 +141,16 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > &pkts, int *client_id)
   UnLock();
 }
 
-void PktScheduler::UpdateStatus(const unordered_map<int, double> &throughputs) {
+void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs) {
   Lock();
   for (const auto &p : throughputs) {
     stats_[p.first].throughput = max(kMinThroughput, p.second);
   }
-  ComputeQuantum();
-  UnLock();
-}
-
-void PktScheduler::ComputeQuantum() {
   switch(fairness_mode()) {
+    case kEqualQuantum:
+      ComputeQuantumEqual();
+      break;
+
     case kThroughputFair:
       ComputeQuantumThroughputFair();
       break;
@@ -150,6 +158,7 @@ void PktScheduler::ComputeQuantum() {
     default:
       assert(false);
   }
+  UnLock();
 }
 
 void PktScheduler::ComputeQuantumThroughputFair() {
@@ -158,6 +167,29 @@ void PktScheduler::ComputeQuantumThroughputFair() {
     total_throughput += stats_[client_id].throughput;
   }
   for (auto client_id : client_ids_) {
-    stats_[client_id].quantum = (int)stats_[client_id].throughput / total_throughput * round_interval_;
+    stats_[client_id].quantum = stats_[client_id].throughput / total_throughput * round_interval_;
   }
+}
+
+void PktScheduler::ComputeQuantumEqual() {
+  for (auto client_id : client_ids_) {
+    stats_[client_id].quantum = round_interval_/client_ids_.size(); 
+  }
+}
+
+unordered_map<int, PktScheduler::Status> PktScheduler::stats() {
+  Lock();
+  unordered_map<int, Status> tmp = stats_;
+  UnLock();
+  return tmp;
+}
+
+void PktScheduler::PrintStats() {
+  Lock();
+  printf("===PktScheduler: client: throughput quantum counter===\n");
+  for (auto client_id: client_ids_) {
+    printf("%d: %g %d %d\n", client_id, stats_[client_id].throughput, 
+                           stats_[client_id].quantum, stats_[client_id].counter);
+  }
+  UnLock();
 }

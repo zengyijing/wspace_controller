@@ -21,7 +21,8 @@ class PktQueue {
   void Enqueue(const char *pkt, uint16_t len);
   // Note: The caller needs to deallocate buf.
   void Dequeue(char **buf, uint16_t *len);
-  // With lock. Return 0 if the queue is empty.
+  // With lock. Return the size of the top packet in bytes.
+  // Return 0 if the queue is empty.
   uint16_t PeekTopPktSize();
 
  private:
@@ -65,14 +66,19 @@ class ActiveList {
 class PktScheduler {
  public:
   enum FairnessMode {
-    kThroughputFair = 0,
+    kEqualQuantum = 0,
+    kThroughputFair = 1,
   };
 
   struct Status {
     double throughput;
-    int quantum;
+    int quantum;  // time slot to send packets in microseconds.
     int counter;
+
     Status() : throughput(0.0), quantum(0), counter(0) {} 
+    Status(double throughput, int quantum, int counter) :
+        throughput(throughput), quantum(quantum), counter(counter) {}
+    friend bool operator==(const Status &l, const Status &r);
   }; 
 
   PktScheduler(double min_throughput, 
@@ -83,16 +89,18 @@ class PktScheduler {
   ~PktScheduler();
 
   void Enqueue(const char *pkt, uint16_t len, int client_id);
-  void Dequeue(vector<pair<char*, uint16_t> > &pkts, int *client_id);
-  void UpdateStatus(const unordered_map<int, double> &throughputs);
-  // No lock.
-  void ComputeQuantum();
+  void Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id);
+  void ComputeQuantum(const unordered_map<int, double> &throughputs);
 
   void set_fairness_mode(const FairnessMode &mode) { fairness_mode_ = mode; }
   FairnessMode fairness_mode() const { return fairness_mode_; }
+  
+  unordered_map<int, Status> stats();
+  void PrintStats();
 
  private:
   // No lock.
+  void ComputeQuantumEqual();
   void ComputeQuantumThroughputFair();
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
