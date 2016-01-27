@@ -55,21 +55,10 @@ void BSStatsTable::Update(int client_id, int radio_id, int bs_id, double through
   UnLock();
 }
 
-bool BSStatsTable::FindMaxThroughputBS(int client_id, int radio_id, int *bs_id, double *throughput) {
-  auto max_p = make_pair(-1, -1.0);
+void BSStatsTable::GetStats(unordered_map<int, unordered_map<int, double> > &stats) {
   Lock();
-  bool found = stats_.count(client_id);
-  if (found) {
-    for (const auto &p : stats_[client_id][radio_id]) {
-      if (p.second > max_p.second) {
-        max_p = p;
-      }
-    }
-  }
+  stats_ = stats;
   UnLock();
-  *bs_id = max_p.first;
-  *throughput = max_p.second;
-  return found;
 }
 
 RoutingTable::RoutingTable() {
@@ -80,7 +69,12 @@ RoutingTable::~RoutingTable() {
   Pthread_mutex_destroy(&lock_);
 }
 
-void RoutingTable::Init(const Tun &tun) {
+void RoutingTable::Init(const Tun &tun, const vector<int> &bs_ids,
+                        const vector<int> &client_ids,
+                        unordered_map<int, int> &conflict_graph,
+                        const FairnessMode &mode, 
+                        string f_stats, string f_conflict, 
+                        string f_route, f_executable) {
   BSInfo info;
   printf("routing table init, tun.bs_ip_tbl_.size():%d\n", tun.bs_ip_tbl_.size());
   Lock();
@@ -98,29 +92,111 @@ void RoutingTable::Init(const Tun &tun) {
     route_[it->first] = it->first;    //route to bs 
     printf("route_[%d]: %d\n", it->first, route_[it->first]);
   }
-
+  bs_ids_ = bs_ids;
+  client_ids_ = client_ids;
+  conflict_graph_ = conflict_graph;
+  fairness_mode_ = mode; 
   UnLock();
 }
 
-void RoutingTable::UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_stats_tbl) {
-  unordered_map<int, double> throughputs;
+void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl, 
+                                bool use_optimizer=false) {
+  if (use_optimizer) {
+    UpdateRoutesOptimizer(bs_stats_tbl);
+  } else {
+    UpdateRoutesMaxThroughput(bs_stats_tbl);
+  }
+  packet_scheduler_->ComputeQuantum(throughputs_);
+}
+
+void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl) {
+  bs_stats_tbl_.GetStats(&stats_);
+  for (auto client_id : client_ids_) {
+    stats_[client_id];
+    for (auto bs_id : bs_ids_) {
+      if (stats_[client_id].count(bs_id) == 0) {
+        stats_[client_id][bs_id] = -1.0;
+      }
+    }
+  }
+  PrintStats(f_stats_);
+  string cmd = f_executable_ + " " + f_conflict_ + " " + f_stats_;
+  printf("Execute cmd: %s\n", cmd);
+  system(cmd.c_str());
   Lock();
-  for (auto client_id : client_ids) {
+  ParseRoutingTable(f_route_);
+  throughputs_.clear();
+  for (auto client_id : client_ids_) {
+    int bs_id = route_[client_id];
+    throughputs_[client_id] = stats_[client_id][bs_id];
+  }
+  UnLock();
+}
+
+void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl) {
+  Lock();
+  bs_stats_tbl_.GetStats(&stats_);
+  throughputs_.clear();
+  for (auto client_id : client_ids_) {
     int bs_id = 0;
     double max_throughput = -1.0;
-    // TODO:Enable dynamically assignment of a radio number. Default radio_id is kBack.
-    bool is_route_available = bs_stats_tbl.FindMaxThroughputBS(client_id, Laptop::kBack, 
-                                                               &bs_id, &max_throughput); 
+    bool is_route_available = FindMaxThroughputBS(client_id, &bs_id, &max_throughput); 
     if (is_route_available) {
       route_[client_id] = bs_id;
-      throughputs[client_id] = max_throughput;
+      throughputs_[client_id] = max_throughput;
       printf("route to %d is through %d\n", client_id, route_[client_id]);
     } else {
       printf("no route to %d currently\n", client_id);
     }
   }
   UnLock();
-  packet_scheduler_->ComputeQuantum(throughputs);
+}
+
+bool RoutingTable::FindMaxThroughputBS(int client_id, int *bs_id, double *throughput) {
+  auto max_p = make_pair(-1, -1.0);
+  Lock();
+  bool found = stats_.count(client_id);
+  if (found) {
+    for (const auto &p : stats_[client_id]) {
+      if (p.second > max_p.second) {
+        max_p = p;
+      }
+    }
+  }
+  UnLock();
+  *bs_id = max_p.first;
+  *throughput = max_p.second;
+  return found;
+}
+
+void RoutingTable::PrintStats(const string &filename) {
+  ofstream ofs(filename.c_str());
+  for (auto client_id : client_ids_) {
+    for (auto bs_id : bs_ids_) {
+      ofs << stats_[client_id][bs_id] << " ";
+    }
+    ofs << endl;
+  }
+  ofs.flush();
+  ofs.close();
+}
+
+void RoutingTable::PrintConflictGraph(const string &filename) {
+  ofstream ofs(filename.c_str());
+  for (auto bs_id : bs_ids_) { 
+    ofs << bs_id << "," conflict_graph_[bs_id] << endl;
+  }
+  ofs.flush();
+  ofs.close();
+}
+
+void RoutingTable::ParseRoutingTable(const string &filename) {
+  int i = 0;
+  ifstream ifs(filename.c_str());
+  string line;
+  while (getline(ifs, line)) {
+    route_[client_ids_[i++]] = atoi(line.c_str());
+  }
 }
 
 bool RoutingTable::FindRoute(int dest_id, int* bs_id, BSInfo *info) {
