@@ -102,8 +102,8 @@ class PktScheduler {
 
  private:
   // No lock.
-  void ComputeQuantumEqual();
-  void ComputeQuantumThroughputFair();
+  void ComputeQuantumEqualTime();
+  void ComputeQuantumEqualThroughput();
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
 

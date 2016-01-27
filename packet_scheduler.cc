@@ -148,11 +148,11 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   }
   switch(fairness_mode()) {
     case kEqualTime:
-      ComputeQuantumEqual();
+      ComputeQuantumEqualTime();
       break;
 
     case kEqualThroughput:
-      ComputeQuantumThroughputFair();
+      ComputeQuantumEqualThroughput();
       break;
 
     default:
@@ -161,7 +161,7 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   UnLock();
 }
 
-void PktScheduler::ComputeQuantumThroughputFair() {
+void PktScheduler::ComputeQuantumEqualThroughput() {
   double total_throughput = 0;
   for (auto client_id : client_ids_) {
     total_throughput += stats_[client_id].throughput;
@@ -171,7 +171,7 @@ void PktScheduler::ComputeQuantumThroughputFair() {
   }
 }
 
-void PktScheduler::ComputeQuantumEqual() {
+void PktScheduler::ComputeQuantumEqualTime() {
   for (auto client_id : client_ids_) {
     stats_[client_id].quantum = round_interval_/client_ids_.size(); 
   }
