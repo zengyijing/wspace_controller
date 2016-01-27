@@ -135,10 +135,10 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
         break;
       }
       case 'b': {
-        string id;
+        string s;
         stringstream ss(optarg);
-        while(getline(ss, id, ',')) {
-          int bs_id = atoi(id.c_str());
+        while(getline(ss, s, ',')) {
+          int bs_id = atoi(s.c_str());
           if(bs_id == 1)
               Perror("id 1 is reserved by controller\n");
           bs_ids_.push_back(bs_id);
@@ -150,14 +150,14 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
         break;
       }
       case 'c': {
-        string id;
+        string s;
         stringstream ss(optarg);
-        while(getline(ss, id, ',')) {
-          int client_id = atoi(addr.c_str());
+        while(getline(ss, s, ',')) {
+          int client_id = atoi(s.c_str());
           if(client_id == 1)
               Perror("id 1 is reserved by controller\n");
           client_ids_.push_back(client_id);
-          client_original_seqs_tbl_[client_id] = 0;
+          client_original_seq_tbl_[client_id] = 0;
         }
         break;
       }
@@ -267,7 +267,7 @@ void* WspaceController::ForwardToBS(void* arg) {
     dest_id = atoi(strrchr(ip_tun,'.') + 1);
     //printf("dest_id: %d\n", dest_id);
     hdr.set_client_id(dest_id);
-    hdr.set_o_seq(++client_original_seqs_tbl_[dest_id]);
+    hdr.set_o_seq(++client_original_seq_tbl_[dest_id]);
     memcpy(pkt, &hdr, sizeof(ControllerToClientHeader));
     if(tun_.client_ip_tbl_.count(dest_id) == 0)
       Perror("Traffic to a client not specified!\n");
