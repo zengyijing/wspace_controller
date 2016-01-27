@@ -15,6 +15,7 @@
 
 #include "pthread_wrapper.h"
 #include "time_util.h"
+#include "monotonic_timer.h"
 
 /* Parameter to be tuned */
 #define BUF_SIZE 5000
@@ -63,8 +64,6 @@ static const int kMaxRawBufSize = 4000;
 #define ATH5K_RATE_CODE_54M  0x0C
 
 //#define RAND_DROP
-
-using namespace std; 
 
 typedef unsigned char uint8;
 typedef unsigned short uint16;
@@ -680,8 +679,8 @@ class RawPktSendStatus {
     : seq_(seq), rate_(rate), len_(len), status_(status) {} 
   
   void Print() const {
-    printf("seq[%u] rate[%u] len[%u] status[%d]\n", 
-      seq_, rate_, len_, int(status_));
+    printf("seq[%u] rate[%u] len[%u] status[%d] time[%.3fms]\n", 
+      seq_, rate_, len_, int(status_), send_time_.GetMSec());
   }
 
 // Data member
@@ -689,6 +688,7 @@ class RawPktSendStatus {
   uint16 rate_;
   uint16 len_;
   Status status_;  /** Fate of each raw packet. */
+  MonotonicTimer send_time_;  
 };
 
 /** 

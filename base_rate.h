@@ -4,7 +4,6 @@
 
 #include "cpp_lib.h"
 #include "c_lib.h"
-#include "monotonic_timer.h"
 
 //rate testing
 //#define TEST_RATE 1
