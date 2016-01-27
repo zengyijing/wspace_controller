@@ -104,8 +104,6 @@ void RoutingTable::UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_
     int bs_id = 0;
     bool is_route_available = bs_stats_tbl.FindMaxThroughputBS(client_id, Laptop::kBack, &bs_id); // TODO:Enable dynamically assignment of a radio number. Default radio_id is kBack.
     if (is_route_available) {
-      if(route_[client_id] != bs_id)
-        printf("route changed!\n");
       route_[client_id] = bs_id;
       printf("route to %d is through %d\n", client_id, route_[client_id]);
     } else {
@@ -137,12 +135,13 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
         break;
       }
       case 'b': {
-        string addr;
+        string id;
         stringstream ss(optarg);
-        while(getline(ss, addr, ',')) {
-          if(atoi(addr.c_str()) == 1)
+        while(getline(ss, id, ',')) {
+          int bs_id = atoi(id.c_str());
+          if(bs_id == 1)
               Perror("id 1 is reserved by controller\n");
-          bs_ids_.push_back(atoi(addr.c_str()));
+          bs_ids_.push_back(bs_id);
         }
         break;
       }
@@ -151,13 +150,14 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
         break;
       }
       case 'c': {
-        string addr;
+        string id;
         stringstream ss(optarg);
-        while(getline(ss, addr, ',')) {
-          if(atoi(addr.c_str()) == 1)
+        while(getline(ss, id, ',')) {
+          int client_id = atoi(addr.c_str());
+          if(client_id == 1)
               Perror("id 1 is reserved by controller\n");
-          client_ids_.push_back(atoi(addr.c_str()));
-          client_seqs_tbl_[atoi(addr.c_str())] = 0;
+          client_ids_.push_back(client_id);
+          client_original_seqs_tbl_[client_id] = 0;
         }
         break;
       }
@@ -267,7 +267,7 @@ void* WspaceController::ForwardToBS(void* arg) {
     dest_id = atoi(strrchr(ip_tun,'.') + 1);
     //printf("dest_id: %d\n", dest_id);
     hdr.set_client_id(dest_id);
-    hdr.set_o_seq(++client_seqs_tbl_[dest_id]);
+    hdr.set_o_seq(++client_original_seqs_tbl_[dest_id]);
     memcpy(pkt, &hdr, sizeof(ControllerToClientHeader));
     if(tun_.client_ip_tbl_.count(dest_id) == 0)
       Perror("Traffic to a client not specified!\n");
