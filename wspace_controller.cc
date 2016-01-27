@@ -104,6 +104,8 @@ void RoutingTable::UpdateRoutes(const vector<int> &client_ids, BSStatsTable &bs_
     int bs_id = 0;
     bool is_route_available = bs_stats_tbl.FindMaxThroughputBS(client_id, Laptop::kBack, &bs_id); // TODO:Enable dynamically assignment of a radio number. Default radio_id is kBack.
     if (is_route_available) {
+      if(route_[client_id] != bs_id)
+        printf("route changed!\n");
       route_[client_id] = bs_id;
       printf("route to %d is through %d\n", client_id, route_[client_id]);
     } else {
@@ -155,6 +157,7 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
           if(atoi(addr.c_str()) == 1)
               Perror("id 1 is reserved by controller\n");
           client_ids_.push_back(atoi(addr.c_str()));
+          client_seqs_tbl_[atoi(addr.c_str())] = 0;
         }
         break;
       }
@@ -262,8 +265,9 @@ void* WspaceController::ForwardToBS(void* arg) {
     strncpy(ip_tun, inet_ntoa(bs_addr), 16);
     //printf("read %d bytes from tun to %s\n", len, ip_tun);
     dest_id = atoi(strrchr(ip_tun,'.') + 1);
-    printf("dest_id: %d\n", dest_id);
+    //printf("dest_id: %d\n", dest_id);
     hdr.set_client_id(dest_id);
+    hdr.set_o_seq(++client_seqs_tbl_[dest_id]);
     memcpy(pkt, &hdr, sizeof(ControllerToClientHeader));
     if(tun_.client_ip_tbl_.count(dest_id) == 0)
       Perror("Traffic to a client not specified!\n");
