@@ -222,12 +222,13 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
         break;
       }
       case 'b': {
-        string addr;
+        string s;
         stringstream ss(optarg);
-        while(getline(ss, addr, ',')) {
-          if(atoi(addr.c_str()) == 1)
+        while(getline(ss, s, ',')) {
+          int bs_id = atoi(s.c_str());
+          if(bs_id == 1)
               Perror("id 1 is reserved by controller\n");
-          bs_ids_.push_back(atoi(addr.c_str()));
+          bs_ids_.push_back(bs_id);
         }
         break;
       }
@@ -236,12 +237,14 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
         break;
       }
       case 'c': {
-        string addr;
+        string s;
         stringstream ss(optarg);
-        while(getline(ss, addr, ',')) {
-          if(atoi(addr.c_str()) == 1)
+        while(getline(ss, s, ',')) {
+          int client_id = atoi(s.c_str());
+          if(client_id == 1)
               Perror("id 1 is reserved by controller\n");
-          client_ids_.push_back(atoi(addr.c_str()));
+          client_ids_.push_back(client_id);
+          client_original_seq_tbl_[client_id] = 0;
         }
         break;
       }

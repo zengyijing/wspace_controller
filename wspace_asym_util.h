@@ -567,11 +567,14 @@ class ControllerToClientHeader {
 
   void set_client_id (int id) { client_id_ = id; }
   int client_id() const { return client_id_; }
+  void set_o_seq (uint32 seq) { o_seq_ = seq;}
+  uint32 o_seq() const { return o_seq_; }
   char type() const { return type_; }
 
  private:
   char type_;
   int client_id_;
+  uint32 o_seq_;
 };
 
 class GPSLogger {
