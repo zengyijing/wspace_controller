@@ -21,7 +21,8 @@ class BSStatsTable {
   BSStatsTable();    
   ~BSStatsTable();    
 
-  void Update(int client_id, int radio_id, int bs_id, double throughput);
+  void Update(int client_id, int bs_id, double throughput);
+  // Only update existing values in stats_.
   void GetStats(unordered_map<int, unordered_map<int, double> > &stats);
 
  private:
@@ -37,7 +38,6 @@ struct BSInfo {
   char ip_tun[16];
   int port;
   int socket_id;
-//  pthread_t p_forward_;
 };
 
 enum FairnessMode {
@@ -53,10 +53,11 @@ class RoutingTable {
   
   void Init(const Tun &tun, const vector<int> &bs_ids,
             const vector<int> &client_ids, 
-            unordered_map<int, int> &conflict_graph, 
             const FairnessMode &mode,
+            unordered_map<int, int> &conflict_graph, 
 			string f_stats, string f_conflict, 
-			string f_route, f_executable);
+			string f_route, string f_executable);
+
   void UpdateRoutes(BSStatsTable &bs_stats_tbl, bool use_optimizer=false);
   bool FindRoute(int dest_id, int* bs_id, BSInfo *info);
 
@@ -66,8 +67,8 @@ class RoutingTable {
   // With lock.
   void UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl);
   bool FindMaxThroughputBS(int client_id, int *bs_id, double *throughput);
-  void PrintStats(const string &filename);
-  void PrintConflictGraph(const string &filename);
+  void PrintStats(const string &filename) const;
+  void PrintConflictGraph(const string &filename) const;
   void ParseRoutingTable(const string &filename);
 
   void Lock() { Pthread_mutex_lock(&lock_); }
@@ -100,7 +101,7 @@ class WspaceController {
   int ExtractClientID(const char *pkt);
 
 // Data member
-  pthread_t p_recv_from_bs_, p_compute_route_, p_forward_to_bs_;
+  pthread_t p_recv_from_bs_, p_compute_route_, p_read_tun_, p_forward_to_bs_;
 
   BSStatsTable bs_stats_tbl_;
   RoutingTable routing_tbl_;  
@@ -113,6 +114,8 @@ class WspaceController {
   vector<int> bs_ids_;
   vector<int> client_ids_;
   unordered_map<int, int> conflict_graph_;
+  string f_stats_, f_conflict_, f_route_, f_executable_;
+  bool use_optimizer_;
 };
 
 /** Wrapper function for pthread_create. */
