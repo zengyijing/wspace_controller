@@ -1,8 +1,9 @@
 #ifndef PKT_SCHEDULER_H_
 #define PKT_SCHEDULER_H_
 
-#include <cstdint>
 #include <pthread.h>
+#include <string.h>
+#include <cstdint>
 #include <queue>
 #include <utility>
 #include <unordered_map>
@@ -66,9 +67,8 @@ class ActiveList {
 class PktScheduler {
  public:
   enum FairnessMode {
-    kInvalid = 0,
-    kEqualTime = 1,
-    kEqualThroughput = 2,
+    kEqualTime = 0,
+    kEqualThroughput = 1,
   };
 
   struct Status {

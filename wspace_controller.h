@@ -23,7 +23,7 @@ class BSStatsTable {
 
   void Update(int client_id, int bs_id, double throughput);
   // Only update existing values in stats_.
-  void GetStats(unordered_map<int, unordered_map<int, double> > &stats);
+  void GetStats(unordered_map<int, unordered_map<int, double> > *stats);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
@@ -41,9 +41,8 @@ struct BSInfo {
 };
 
 enum FairnessMode {
-  kInvalid = 0,
-  kEqualTime = 1,
-  kEqualThroughput = 2,
+  kEqualTime = 0,
+  kEqualThroughput = 1,
 };
 
 class RoutingTable {
@@ -58,17 +57,23 @@ class RoutingTable {
 			string f_stats, string f_conflict, 
 			string f_route, string f_executable);
 
-  void UpdateRoutes(BSStatsTable &bs_stats_tbl, bool use_optimizer=false);
+  // throughputs - throughput of the selected bs for each client.
+  void UpdateRoutes(BSStatsTable &bs_stats_tbl, 
+                    unordered_map<int, double> &throughputs, 
+                    bool use_optimizer = false);
   bool FindRoute(int dest_id, int* bs_id, BSInfo *info);
+  void PrintConflictGraph(const string &filename);
 
  private:
   // With lock.
-  void UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl);
+  void UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl, 
+                                 unordered_map<int, double> &throughputs);
   // With lock.
-  void UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl);
+  void UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
+                             unordered_map<int, double> &throughputs);
+
   bool FindMaxThroughputBS(int client_id, int *bs_id, double *throughput);
-  void PrintStats(const string &filename) const;
-  void PrintConflictGraph(const string &filename) const;
+  void PrintStats(const string &filename);
   void ParseRoutingTable(const string &filename);
 
   void Lock() { Pthread_mutex_lock(&lock_); }
