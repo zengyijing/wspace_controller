@@ -147,11 +147,11 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
     stats_[p.first].throughput = max(kMinThroughput, p.second);
   }
   switch(fairness_mode()) {
-    case kEqualQuantum:
+    case kEqualTime:
       ComputeQuantumEqual();
       break;
 
-    case kThroughputFair:
+    case kEqualThroughput:
       ComputeQuantumThroughputFair();
       break;
 

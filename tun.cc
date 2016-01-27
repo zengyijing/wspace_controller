@@ -94,6 +94,10 @@ uint16_t Tun::Write(const IOType &type, char *buf, uint16_t len, sockaddr_in *se
   return nwrite;
 }
 
+bool Tun::IsValidClient(int client_id) {
+  return client_ip_tbl_.count(client_id);
+}
+
 inline int cread(int fd, char *buf, int n) {
   int nread;
 

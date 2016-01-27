@@ -7,6 +7,10 @@
 #include <utility>
 #include "wspace_asym_util.h"
 #include "tun.h"
+#include "packet_scheduler.h"
+
+#define MIN_THROUGHPUT 1
+#define PKT_QUEUE_SIZE 1000 
 
 class BSStatsTable {
  public:
@@ -14,7 +18,7 @@ class BSStatsTable {
   ~BSStatsTable();    
 
   void Update(int client_id, int radio_id, int bs_id, double throughput);
-  bool FindMaxThroughputBS(int client_id, int radio_id, int *bs_id);
+  bool FindMaxThroughputBS(int client_id, int radio_id, int *bs_id, double *throughput);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
@@ -50,18 +54,19 @@ class RoutingTable {
   pthread_mutex_t lock_;
 };
 
-class WspaceController
-{
+class WspaceController {
  public:
   WspaceController(int argc, char *argv[], const char *optstring);
-  ~WspaceController() {}
+  ~WspaceController();
   
   void* RecvFromBS(void *arg);
   void* ComputeRoutes(void *arg);
+  void* ReadTun(void *arg);
   void* ForwardToBS(void *arg);
 
   void Init();
   void ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table);
+  int ExtractClientID(const char *pkt);
 
 // Data member
   pthread_t p_recv_from_bs_, p_compute_route_, p_forward_to_bs_;
@@ -69,6 +74,9 @@ class WspaceController
   BSStatsTable bs_stats_tbl_;
   RoutingTable routing_tbl_;  
   Tun tun_;
+  PktScheduler *packet_scheduler_;
+  PktScheduler::FairnessMode fairness_mode_;
+  uint32 round_interval_;        // in microseconds to schedule cilents in a round.
   uint32 update_route_interval_; // in milliseconds.
   vector<int> bs_ids_;
   vector<int> client_ids_;
@@ -77,6 +85,7 @@ class WspaceController
 /** Wrapper function for pthread_create. */
 void* LaunchRecvFromBS(void* arg);
 void* LaunchComputeRoutes(void* arg);
+void* LaunchReadTun(void* arg);
 void* LaunchForwardToBS(void* arg);
 
 #endif

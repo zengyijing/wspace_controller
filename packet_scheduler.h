@@ -66,8 +66,9 @@ class ActiveList {
 class PktScheduler {
  public:
   enum FairnessMode {
-    kEqualQuantum = 0,
-    kThroughputFair = 1,
+    kInvalid = 0,
+    kEqualTime = 1,
+    kEqualThroughput = 2,
   };
 
   struct Status {
@@ -90,6 +91,7 @@ class PktScheduler {
 
   void Enqueue(const char *pkt, uint16_t len, int client_id);
   void Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id);
+  // throughputs: <client_id, throughput>.
   void ComputeQuantum(const unordered_map<int, double> &throughputs);
 
   void set_fairness_mode(const FairnessMode &mode) { fairness_mode_ = mode; }

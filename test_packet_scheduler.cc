@@ -100,7 +100,7 @@ void TestActiveList() {
 void TestComputeQuantum() {
   cout << "Launch TestComputeQuantum" << endl;
   QuantumTest tests[3];
-  tests[0].scheduler = new PktScheduler(1.0, {1, 2, 3}, 5, 1000, PktScheduler::kThroughputFair);
+  tests[0].scheduler = new PktScheduler(1.0, {1, 2, 3}, 5, 1000, PktScheduler::kEqualThroughput);
   tests[0].stats[1] = {1.5, 333, 0};
   tests[0].stats[2] = {2, 444, 0};
   tests[0].stats[3] = {1, 222, 0};
@@ -108,7 +108,7 @@ void TestComputeQuantum() {
   tests[0].throughputs[2] = 2;
   tests[0].throughputs[3] = 0.5;
 
-  tests[1].scheduler = new PktScheduler(1.0, {1, 2, 3}, 5, 1000, PktScheduler::kThroughputFair);
+  tests[1].scheduler = new PktScheduler(1.0, {1, 2, 3}, 5, 1000, PktScheduler::kEqualThroughput);
   tests[1].stats[1] = {5, 625, 0};
   tests[1].stats[2] = {2, 250, 0};
   tests[1].stats[3] = {1, 125, 0};
@@ -116,7 +116,7 @@ void TestComputeQuantum() {
   tests[1].throughputs[2] = 2;
   tests[1].throughputs[3] = 1;
 
-  tests[2].scheduler = new PktScheduler(1.0, {1, 2, 3}, 5, 1000, PktScheduler::kEqualQuantum);
+  tests[2].scheduler = new PktScheduler(1.0, {1, 2, 3}, 5, 1000, PktScheduler::kEqualTime);
   tests[2].stats[1] = {5, 333, 0};
   tests[2].stats[2] = {2, 333, 0};
   tests[2].stats[3] = {1, 333, 0};
@@ -185,7 +185,7 @@ void TestSchedulerQueue() {
   vector<int> clients = {1, 2, 3};
   uint32_t per_client_interval = 50; 
   uint32_t interval = per_client_interval * clients.size();
-  test.scheduler = new PktScheduler(2.0, clients, 5, interval, PktScheduler::kEqualQuantum);
+  test.scheduler = new PktScheduler(2.0, clients, 5, interval, PktScheduler::kEqualTime);
   // Round 1.
   test.tx_pkts.push_back({1, "ab"});
   test.tx_pkts.push_back({3, "abcd"});
