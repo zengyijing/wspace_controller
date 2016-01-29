@@ -412,10 +412,11 @@ void* WspaceController::ForwardToBS(void* arg) {
   ((ControllerToClientHeader*)buf)->set_type(CONTROLLER_TO_CLIENT);
   while (1) {
     packet_scheduler_->Dequeue(&pkts, &client_id);
-	if(!tun_.IsValidClient(client_id)) {
+    if(!tun_.IsValidClient(client_id)) {
 	  Perror("WspaceController::ForwardToBS: Invalid client[%d]!\n", client_id);
     }
     ((ControllerToClientHeader*)buf)->set_client_id(client_id);
+    ((ControllerToClientHeader*)buf)->set_o_seq(++client_original_seq_tbl_[client_id]);
     // Send packets from a client in a round.
     for (auto &p : pkts) {
       memcpy(buf + sizeof(ControllerToClientHeader), p.first, p.second);
