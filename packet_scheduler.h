@@ -83,10 +83,10 @@ class PktScheduler {
   }; 
 
   PktScheduler(double min_throughput, 
-			   const vector<int> &client_ids, 
-			   uint32_t pkt_queue_size,
-			   uint32_t round_interval, 
-			   const FairnessMode &fairness_mode);
+         const vector<int> &client_ids, 
+         uint32_t pkt_queue_size,
+         uint32_t round_interval, 
+         const FairnessMode &fairness_mode);
   ~PktScheduler();
 
   void Enqueue(const char *pkt, uint16_t len, int client_id);

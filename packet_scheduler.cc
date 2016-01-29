@@ -9,8 +9,8 @@ PktQueue::PktQueue(size_t max_size) : kMaxSize(max_size) {
 PktQueue::~PktQueue() {
   Lock();
   while (!q_.empty()) {
-	  delete[] q_.front().first;
-	  q_.pop();
+    delete[] q_.front().first;
+    q_.pop();
   }
   UnLock();
   Pthread_mutex_destroy(&lock_);
@@ -24,8 +24,8 @@ void PktQueue::Enqueue(const char *pkt, uint16_t len) {
   }
   Lock();
   while (IsFull()) {
-	  WaitEmpty();
-  }	
+    WaitEmpty();
+  }  
   char *buf = new char[len];
   memcpy(buf, pkt, len);
   q_.push(make_pair(buf, len));
@@ -65,8 +65,8 @@ ActiveList::~ActiveList() {
 void ActiveList::Append(int id) {
   Lock();
   if (exist_.count(id) == 0) {
-	ids_.push(id);
-	exist_.insert(id);
+  ids_.push(id);
+  exist_.insert(id);
     SignalFill();
   }
   UnLock();
@@ -188,7 +188,7 @@ void PktScheduler::PrintStats() {
   Lock();
   printf("===PktScheduler: client: throughput quantum counter===\n");
   for (auto client_id: client_ids_) {
-    printf("%d: %g %d %d\n", client_id, stats_[client_id].throughput, 
+    printf("%d: %3f %d %d\n", client_id, stats_[client_id].throughput, 
                            stats_[client_id].quantum, stats_[client_id].counter);
   }
   UnLock();

@@ -378,6 +378,7 @@ void* WspaceController::ComputeRoutes(void* arg) {
   while(1) {
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, use_optimizer_);
     packet_scheduler_->ComputeQuantum(throughputs);
+    packet_scheduler_->PrintStats();
     usleep(update_route_interval_);  
   }
   return (void*)NULL;
@@ -413,7 +414,7 @@ void* WspaceController::ForwardToBS(void* arg) {
   while (1) {
     packet_scheduler_->Dequeue(&pkts, &client_id);
     if(!tun_.IsValidClient(client_id)) {
-	  Perror("WspaceController::ForwardToBS: Invalid client[%d]!\n", client_id);
+    Perror("WspaceController::ForwardToBS: Invalid client[%d]!\n", client_id);
     }
     ((ControllerToClientHeader*)buf)->set_client_id(client_id);
     ((ControllerToClientHeader*)buf)->set_o_seq(++client_original_seq_tbl_[client_id]);
@@ -422,20 +423,20 @@ void* WspaceController::ForwardToBS(void* arg) {
       memcpy(buf + sizeof(ControllerToClientHeader), p.first, p.second);
       delete[] p.first;
       uint16 len = p.second + sizeof(ControllerToClientHeader);
-	  int bs_id = 0;
-	  bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
-	  if (is_route_available) {
-		tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
-		//printf("convert address to %s\n", info.ip_eth);
-		tun_.Write(Tun::kControl, buf, len, &bs_addr);
-	  } else {
-		printf("No route to the client[%d]\n", client_id);
-		for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
-		  printf("broadcast through bs %d/%s\n", it->first, it->second);
-		  tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
-		  tun_.Write(Tun::kControl, buf, len, &bs_addr);
-		}
-	  }
+    int bs_id = 0;
+    bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
+    if (is_route_available) {
+    tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
+    //printf("convert address to %s\n", info.ip_eth);
+    tun_.Write(Tun::kControl, buf, len, &bs_addr);
+    } else {
+    printf("No route to the client[%d]\n", client_id);
+    for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
+      printf("broadcast through bs %d/%s\n", it->first, it->second);
+      tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
+      tun_.Write(Tun::kControl, buf, len, &bs_addr);
+    }
+    }
     }
   }
   delete[] buf;
