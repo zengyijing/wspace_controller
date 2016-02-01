@@ -223,12 +223,11 @@ void* WspaceController::RecvFromBS(void* arg) {
       uint32 seq;
       int bs_id;
       int client_id;
-      int radio_id;
       double throughput;
-      stats_pkt->ParsePkt(&seq, &bs_id, &client_id, &radio_id, &throughput);
+      stats_pkt->ParsePkt(&seq, &bs_id, &client_id, &throughput);
       if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id] < seq) {
         current_seq[bs_id] = seq;
-        bs_stats_tbl_.Update(client_id, radio_id, bs_id, throughput);
+        bs_stats_tbl_.Update(client_id, 2, bs_id, throughput);
       } else {
         Perror("WspaceController::RecvFromBS: Received invalid BSStatsPkt\n");
       }
