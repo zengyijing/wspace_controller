@@ -646,14 +646,13 @@ class BSStatsPkt {
   }
   ~BSStatsPkt() {}
 
-  void Init(uint32 seq, int bs_id, int client_id, int radio_id, double throughput);
-  void ParsePkt(uint32 *seq, int *bs_id, int *client_id, int *radio_id, double *throughput) const;
+  void Init(uint32 seq, int bs_id, int client_id, double throughput);
+  void ParsePkt(uint32 *seq, int *bs_id, int *client_id, double *throughput) const;
   
   char type_; 
   uint32 seq_;  
   int bs_id_;
   int client_id_;
-  int radio_id_;
   double throughput_;
 };
 
