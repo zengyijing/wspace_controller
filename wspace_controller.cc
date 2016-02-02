@@ -211,9 +211,11 @@ void WspaceController::Init() {
 void* WspaceController::RecvFromBS(void* arg) {
   uint16 nread=0;
   char *pkt = new char[PKT_SIZE];
-  static unordered_map<int, uint32> current_seq;
-  for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
-    current_seq[it->first] = 0;
+  static unordered_map<int, unordered_map<int, uint32> > current_seq;
+  for(auto it_1 = bs_ids_.begin(); it_1 != bs_ids_.end(); ++it_1) {
+    for(auto it_2 = client_ids_.begin(); it_2 != client_ids_.end(); ++it_2) {
+      current_seq[*it_1][*it_2] = 0;
+    }
   }
   while (1) {
     nread = tun_.Read(Tun::kControl, pkt, PKT_SIZE);
@@ -225,8 +227,8 @@ void* WspaceController::RecvFromBS(void* arg) {
       int client_id;
       double throughput;
       stats_pkt->ParsePkt(&seq, &bs_id, &client_id, &throughput);
-      if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id] < seq) {
-        current_seq[bs_id] = seq;
+      if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id][client_id] < seq) {
+        current_seq[bs_id][client_id] = seq;
         bs_stats_tbl_.Update(client_id, 2, bs_id, throughput);
       } else {
         Perror("WspaceController::RecvFromBS: Received invalid BSStatsPkt\n");
