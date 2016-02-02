@@ -24,9 +24,7 @@ void PktQueue::Enqueue(const char *pkt, uint16_t len, uint32_t seq, MonotonicTim
   }
   Lock();
   while (IsFull()) {
-    UnLock();
     WaitEmpty();
-    Lock();
   }  
   char *buf = new char[len];
   memcpy(buf, pkt, len);
@@ -79,9 +77,7 @@ void ActiveList::Append(int id) {
 int ActiveList::Remove() {
   Lock();
   while (IsEmpty()) {
-    UnLock();
     WaitFill();
-    Lock();
   }
   int id = ids_.front();
   ids_.pop();
