@@ -65,8 +65,8 @@ ActiveList::~ActiveList() {
 void ActiveList::Append(int id) {
   Lock();
   if (exist_.count(id) == 0) {
-  ids_.push(id);
-  exist_.insert(id);
+    ids_.push(id);
+    exist_.insert(id);
     SignalFill();
   }
   UnLock();
