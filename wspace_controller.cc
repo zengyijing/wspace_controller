@@ -342,22 +342,25 @@ void WspaceController::Init() {
 void* WspaceController::RecvFromBS(void* arg) {
   uint16 nread=0;
   char *pkt = new char[PKT_SIZE];
-  static unordered_map<int, uint32> current_seq;
-  for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
-    current_seq[it->first] = 0;
+  static unordered_map<int,  unordered_map<int, uint32> > current_seq;
+  for(auto it_1 = bs_ids_.begin(); it_1 != bs_ids_.end(); ++it_1) {
+    for(auto it_2 = client_ids_.begin(); it_2 != client_ids_.end(); ++it_2) {
+      current_seq[*it_1][*it_2] = 0;
+    }
   }
   while (1) {
     nread = tun_.Read(Tun::kControl, pkt, PKT_SIZE);
     //printf("pkt header: %d\n", (int)pkt[0]);
     if (pkt[0] == BS_STATS) {
       BSStatsPkt* stats_pkt = (BSStatsPkt*) pkt;
-      uint32 seq;
+      uint32_t seq;
       int bs_id;
       int client_id;
       double throughput;
       stats_pkt->ParsePkt(&seq, &bs_id, &client_id, &throughput);
-      if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id] < seq) {
-        current_seq[bs_id] = seq;
+      printf("bs_id:%d, client_id:%d, seq:%d, current_seq[bs_id][client_id]:%d\n", bs_id, client_id, seq, current_seq[bs_id][client_id]);
+      if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id][client_id] < seq) {
+        current_seq[bs_id][client_id] = seq;
         // Assume bs_id = radio_id for simplicity.
         bs_stats_tbl_.Update(client_id, bs_id, throughput);
       } else {
@@ -394,23 +397,29 @@ int WspaceController::ExtractClientID(const char *pkt) {
 
 void* WspaceController::ReadTun(void *arg) {
   char *pkt = new char[PKT_SIZE];
-  while (true) { 
-    uint16 len = tun_.Read(Tun::kTun, pkt, PKT_SIZE);
-    //printf("read %d bytes from tun to %s\n", len, ip_tun);
-    int client_id = ExtractClientID(pkt);
-    packet_scheduler_->Enqueue(pkt, len, client_id);
-  }
-  delete[] pkt;
-}
+  static uint32_t seq = 0;
 
-void* WspaceController::ForwardToBS(void* arg) {
+/*
   int client_id = 0;
   char *buf = new char[PKT_SIZE];
   struct sockaddr_in bs_addr;
   BSInfo info;
-  vector<pair<char*, uint16_t> > pkts;
+  vector<pair<pair<char*, uint16_t>, pair<uint32_t, MonotonicTimer> > > pkts;
   ((ControllerToClientHeader*)buf)->set_type(CONTROLLER_TO_CLIENT);
-  while (1) {
+*/
+
+  while (true) { 
+    uint16 len = tun_.Read(Tun::kTun, pkt, PKT_SIZE);
+    //printf("read %d bytes from tun to %s\n", len, ip_tun);
+    int client_id = ExtractClientID(pkt);
+    MonotonicTimer timer;
+    packet_scheduler_->Enqueue(pkt, len, client_id, ++seq, timer);
+    printf("seq:%d for client_id:%d enqueue\n", seq, client_id);
+/*
+    int min_duration =  len * 8.0 / (54.0 * client_ids_.size());
+    usleep(min_duration);
+*/
+/*
     packet_scheduler_->Dequeue(&pkts, &client_id);
     if(!tun_.IsValidClient(client_id)) {
       Perror("WspaceController::ForwardToBS: Invalid client[%d]!\n", client_id);
@@ -419,24 +428,84 @@ void* WspaceController::ForwardToBS(void* arg) {
     ((ControllerToClientHeader*)buf)->set_o_seq(++client_original_seq_tbl_[client_id]);
     // Send packets from a client in a round.
     for (auto &p : pkts) {
-      memcpy(buf + sizeof(ControllerToClientHeader), p.first, p.second);
-      delete[] p.first;
-      uint16 len = p.second + sizeof(ControllerToClientHeader);
+      memcpy(buf + sizeof(ControllerToClientHeader), p.first.first, p.first.second);
+      delete[] p.first.first;
+      uint16 len = p.first.second + sizeof(ControllerToClientHeader);
       int bs_id = 0;
+      MonotonicTimer timer;
+      MonotonicTimer diff = timer - p.second.second;
+      printf("seq:%d dequeue, using time: ", p.second.first);
+      diff.PrintTimer(true);
       bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
       if (is_route_available) {
         tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
         //printf("convert address to %s\n", info.ip_eth);
         tun_.Write(Tun::kControl, buf, len, &bs_addr);
       } else {
-        printf("No route to the client[%d]\n", client_id);
+        //printf("No route to the client[%d]\n", client_id);
         for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
-          printf("broadcast through bs %d/%s\n", it->first, it->second);
+          //printf("broadcast through bs %d/%s\n", it->first, it->second);
           tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
           tun_.Write(Tun::kControl, buf, len, &bs_addr);
         }
       }
     }
+
+*/
+
+
+  }
+  delete[] pkt;
+
+
+/*
+  delete[] buf;
+*/
+}
+
+void* WspaceController::ForwardToBS(void* arg) {
+
+  int client_id = 0;
+  char *buf = new char[PKT_SIZE];
+  struct sockaddr_in bs_addr;
+  BSInfo info;
+  vector<pair<pair<char*, uint16_t>, pair<uint32_t, MonotonicTimer> > > pkts;
+  ((ControllerToClientHeader*)buf)->set_type(CONTROLLER_TO_CLIENT);
+  while (1) {
+
+    packet_scheduler_->Dequeue(&pkts, &client_id);
+    if(!tun_.IsValidClient(client_id)) {
+      Perror("WspaceController::ForwardToBS: Invalid client[%d]!\n", client_id);
+    }
+    ((ControllerToClientHeader*)buf)->set_client_id(client_id);
+    ((ControllerToClientHeader*)buf)->set_o_seq(++client_original_seq_tbl_[client_id]);
+    // Send packets from a client in a round.
+    for (auto &p : pkts) {
+      memcpy(buf + sizeof(ControllerToClientHeader), p.first.first, p.first.second);
+      delete[] p.first.first;
+      uint16 len = p.first.second + sizeof(ControllerToClientHeader);
+      int bs_id = 0;
+      MonotonicTimer timer;
+      MonotonicTimer diff = timer - p.second.second;
+      printf("seq:%d dequeue for client_id:%d, using time: ", p.second.first, client_id);
+      diff.PrintTimer(true);
+      bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
+      if (is_route_available) {
+        tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
+        //printf("convert address to %s\n", info.ip_eth);
+        tun_.Write(Tun::kControl, buf, len, &bs_addr);
+      } else {
+        //printf("No route to the client[%d]\n", client_id);
+        for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
+          //printf("broadcast through bs %d/%s\n", it->first, it->second);
+          tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
+          tun_.Write(Tun::kControl, buf, len, &bs_addr);
+        }
+      }
+    }
+
+
+
   }
   delete[] buf;
   return (void*)NULL;

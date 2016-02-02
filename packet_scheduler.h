@@ -10,7 +10,7 @@
 #include <unordered_set>
 
 #include "pthread_wrapper.h"
-
+#include "monotonic_timer.h"
 using namespace std;
 
 class PktQueue {
@@ -19,9 +19,9 @@ class PktQueue {
   PktQueue(size_t max_size);
   ~PktQueue();
 
-  void Enqueue(const char *pkt, uint16_t len);
+  void Enqueue(const char *pkt, uint16_t len, uint32_t seq, MonotonicTimer timer);
   // Note: The caller needs to deallocate buf.
-  void Dequeue(char **buf, uint16_t *len);
+  void Dequeue(char **buf, uint16_t *len, uint32_t *seq, MonotonicTimer *timer);
   // With lock. Return the size of the top packet in bytes.
   // Return 0 if the queue is empty.
   uint16_t PeekTopPktSize();
@@ -35,7 +35,7 @@ class PktQueue {
   void SignalEmpty() { Pthread_cond_signal(&empty_cond_); }
 
   size_t kMaxSize;
-  queue<pair<char*, uint16_t> > q_;  // <Packet buffer address, length>.
+  queue<pair<pair<char*, uint16_t>, pair<uint32_t, MonotonicTimer> > > q_;  // <Packet buffer address, length>.
   pthread_mutex_t lock_;
   pthread_cond_t empty_cond_;
 };
@@ -68,7 +68,8 @@ class PktScheduler {
  public:
   enum FairnessMode {
     kEqualTime = 0,
-    kEqualThroughput = 1,
+    kProportionalThroughput = 1,
+    kEqualThroughput = 2,
   };
 
   struct Status {
@@ -89,8 +90,8 @@ class PktScheduler {
          const FairnessMode &fairness_mode);
   ~PktScheduler();
 
-  void Enqueue(const char *pkt, uint16_t len, int client_id);
-  void Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id);
+  void Enqueue(const char *pkt, uint16_t len, int client_id, uint32_t seq, MonotonicTimer timer);
+  void Dequeue(vector<pair<pair<char*, uint16_t>, pair<uint32_t, MonotonicTimer> > > *pkts, int *client_id);
   // throughputs: <client_id, throughput>.
   void ComputeQuantum(const unordered_map<int, double> &throughputs);
 
@@ -104,6 +105,7 @@ class PktScheduler {
   // No lock.
   void ComputeQuantumEqual();
   void ComputeQuantumThroughputFair();
+  void ComputeQuantumEqualThroughput();
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
 

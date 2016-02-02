@@ -9,7 +9,7 @@ PktQueue::PktQueue(size_t max_size) : kMaxSize(max_size) {
 PktQueue::~PktQueue() {
   Lock();
   while (!q_.empty()) {
-    delete[] q_.front().first;
+    delete[] q_.front().first.first;
     q_.pop();
   }
   UnLock();
@@ -17,7 +17,7 @@ PktQueue::~PktQueue() {
   Pthread_cond_destroy(&empty_cond_);
 }
 
-void PktQueue::Enqueue(const char *pkt, uint16_t len) {
+void PktQueue::Enqueue(const char *pkt, uint16_t len, uint32_t seq, MonotonicTimer timer) {
   if (len <= 0) {
     perror("PktQueue::Enqueue invalid len\n");
     exit(0);
@@ -28,15 +28,17 @@ void PktQueue::Enqueue(const char *pkt, uint16_t len) {
   }  
   char *buf = new char[len];
   memcpy(buf, pkt, len);
-  q_.push(make_pair(buf, len));
+  q_.push(make_pair(make_pair(buf, len), make_pair(seq, timer)));
   UnLock();
 }
 
-void PktQueue::Dequeue(char **buf, uint16_t *len) {
+void PktQueue::Dequeue(char **buf, uint16_t *len, uint32_t *seq, MonotonicTimer *timer) {
   Lock();
   assert(!IsEmpty());
-  *buf  = q_.front().first;
-  *len = q_.front().second; 
+  *buf  = q_.front().first.first;
+  *len = q_.front().first.second; 
+  *seq  = q_.front().second.first;
+  *timer = q_.front().second.second;
   q_.pop();
   SignalEmpty();
   UnLock();
@@ -46,7 +48,7 @@ uint16_t PktQueue::PeekTopPktSize() {
   uint16_t len = 0;
   Lock();
   if (!IsEmpty()) {
-    len = q_.front().second;
+    len = q_.front().first.second;
   }
   UnLock();
   return len;
@@ -111,12 +113,12 @@ PktScheduler::~PktScheduler() {
   Pthread_mutex_destroy(&lock_);
 }
 
-void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id) {
-  queues_[client_id]->Enqueue(pkt, len); 
+void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id, uint32_t seq, MonotonicTimer timer) {
+  queues_[client_id]->Enqueue(pkt, len, seq, timer); 
   active_list_.Append(client_id);
 }
 
-void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id) {
+void PktScheduler::Dequeue(vector<pair<pair<char*, uint16_t>, pair<uint32_t, MonotonicTimer> > > *pkts, int *client_id) {
   *client_id = active_list_.Remove();
   pkts->clear();
   Lock();
@@ -126,9 +128,11 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id)
   while ((len = queues_[*client_id]->PeekTopPktSize()) > 0) {
     int pkt_duration = len * 8.0 / stats_[*client_id].throughput;
     // Not enough time to send this packet.
-    if (stats_[*client_id].counter < pkt_duration) break;  
-    queues_[*client_id]->Dequeue(&pkt, &len);
-    pkts->push_back({pkt, len});
+    if (stats_[*client_id].counter < pkt_duration) break;
+    MonotonicTimer timer;
+    uint32_t seq;  
+    queues_[*client_id]->Dequeue(&pkt, &len, &seq, &timer);
+    pkts->push_back({{pkt, len}, {seq, timer} });
     stats_[*client_id].counter -= pkt_duration;
     //printf("PktScheduler::Dequeue: %d len: %u cnt: %u\n",
     //       *client_id, pkt_duration, stats_[*client_id].counter);
@@ -151,8 +155,12 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
       ComputeQuantumEqual();
       break;
 
-    case kEqualThroughput:
+    case kProportionalThroughput:
       ComputeQuantumThroughputFair();
+      break;
+
+    case kEqualThroughput:
+      ComputeQuantumEqualThroughput();
       break;
 
     default:
@@ -169,6 +177,23 @@ void PktScheduler::ComputeQuantumThroughputFair() {
   for (auto client_id : client_ids_) {
     stats_[client_id].quantum = stats_[client_id].throughput / total_throughput * round_interval_;
   }
+}
+
+void PktScheduler::ComputeQuantumEqualThroughput() {
+  double total_throughput = 0;
+  for (auto client_id : client_ids_) {
+    total_throughput += stats_[client_id].throughput;
+  }
+  double *proportion = new double[client_ids_.size()];
+  double sum = 0;
+  for (int i = 0; i < client_ids_.size(); ++i) {
+    proportion[i] = total_throughput / stats_[client_ids_[i]].throughput;
+    sum += proportion[i];
+  }
+  for (int i = 0; i < client_ids_.size(); ++i) {
+    stats_[client_ids_[i]].quantum = proportion[i] / sum * round_interval_;
+  }
+  delete[] proportion; 
 }
 
 void PktScheduler::ComputeQuantumEqual() {
