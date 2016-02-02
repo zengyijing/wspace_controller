@@ -400,6 +400,10 @@ void* WspaceController::ReadTun(void *arg) {
     uint16 len = tun_.Read(Tun::kTun, pkt, PKT_SIZE);
     //printf("read %d bytes from tun to %s\n", len, ip_tun);
     int client_id = ExtractClientID(pkt);
+    if (client_original_seq_tbl_.count(client_id) == 0) {
+      printf("Traffic to an unknown client:%d, continue.\n", client_id);
+      continue;
+    }
     packet_scheduler_->Enqueue(pkt, len, client_id);
   }
   delete[] pkt;
