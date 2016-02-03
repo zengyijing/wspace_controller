@@ -358,7 +358,7 @@ void* WspaceController::RecvFromBS(void* arg) {
       int client_id;
       double throughput;
       stats_pkt->ParsePkt(&seq, &bs_id, &client_id, &throughput);
-      printf("bs_id:%d, client_id:%d, seq:%d, current_seq[bs_id][client_id]:%d\n", bs_id, client_id, seq, current_seq[bs_id][client_id]);
+      //printf("bs_id:%d, client_id:%d, seq:%d, current_seq[bs_id][client_id]:%d\n", bs_id, client_id, seq, current_seq[bs_id][client_id]);
       if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id][client_id] < seq) {
         current_seq[bs_id][client_id] = seq;
         // Assume bs_id = radio_id for simplicity.
@@ -369,6 +369,18 @@ void* WspaceController::RecvFromBS(void* arg) {
     } else if (pkt[0] == CELL_DATA) {
       //printf("received uplink data message.\n");
       tun_.Write(Tun::kTun, pkt + CELL_DATA_HEADER_SIZE, nread - CELL_DATA_HEADER_SIZE, NULL);
+    } else if (pkt[0] == DATA_ACK || pkt[0] == RAW_ACK) {
+      // Send Ack to corresponding bs.
+      AckHeader *hdr = (AckHeader*)pkt;
+      struct sockaddr_in bs_addr;
+      tun_.CreateAddr(tun_.bs_ip_tbl_[hdr->bs_id()], PORT_ETH, &bs_addr);
+      tun_.Write(Tun::kControl, pkt, nread, &bs_addr);
+    } else if (pkt[0] == GPS) {
+      // Send gps message to default bs.
+      GPSHeader *hdr = (GPSHeader*)pkt;
+      struct sockaddr_in bs_addr;
+      tun_.CreateAddr(tun_.bs_ip_tbl_.begin()->second, PORT_ETH, &bs_addr);
+      tun_.Write(Tun::kControl, pkt, nread, &bs_addr);
     }
   }
   delete[] pkt;
@@ -380,7 +392,7 @@ void* WspaceController::ComputeRoutes(void* arg) {
   while(1) {
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, use_optimizer_);
     packet_scheduler_->ComputeQuantum(throughputs);
-    packet_scheduler_->PrintStats();
+    //packet_scheduler_->PrintStats();
     usleep(update_route_interval_);  
   }
   return (void*)NULL;
@@ -412,6 +424,10 @@ void* WspaceController::ReadTun(void *arg) {
     uint16 len = tun_.Read(Tun::kTun, pkt, PKT_SIZE);
     //printf("read %d bytes from tun to %s\n", len, ip_tun);
     int client_id = ExtractClientID(pkt);
+    if (client_original_seq_tbl_.count(client_id) == 0) {
+      printf("Traffic to an unknown client:%d, continue.\n", client_id);
+      continue;
+    }
     MonotonicTimer timer;
     packet_scheduler_->Enqueue(pkt, len, client_id, ++seq, timer);
     printf("seq:%d for client_id:%d enqueue\n", seq, client_id);
