@@ -256,6 +256,9 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
               Perror("id 1 is reserved by controller\n");
           client_ids_.push_back(client_id);
           client_original_seq_tbl_[client_id] = 0;
+          counter_[client_id] = 0;
+          MonotonicTimer timer;
+          last_update_time_[client_id] = timer;
         }
         break;
       }
@@ -392,7 +395,7 @@ void* WspaceController::ComputeRoutes(void* arg) {
   while(1) {
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, use_optimizer_);
     packet_scheduler_->ComputeQuantum(throughputs);
-    //packet_scheduler_->PrintStats();
+    packet_scheduler_->PrintStats();
     usleep(update_route_interval_);  
   }
   return (void*)NULL;
@@ -430,7 +433,7 @@ void* WspaceController::ReadTun(void *arg) {
     }
     MonotonicTimer timer;
     packet_scheduler_->Enqueue(pkt, len, client_id, ++seq, timer);
-    printf("seq:%d for client_id:%d enqueue\n", seq, client_id);
+    //printf("seq:%d for client_id:%d enqueue\n", seq, client_id);
 /*
     int min_duration =  len * 8.0 / (54.0 * client_ids_.size());
     usleep(min_duration);
@@ -503,8 +506,8 @@ void* WspaceController::ForwardToBS(void* arg) {
       int bs_id = 0;
       MonotonicTimer timer;
       MonotonicTimer diff = timer - p.second.second;
-      printf("seq:%d dequeue for client_id:%d, using time: ", p.second.first, client_id);
-      diff.PrintTimer(true);
+      //printf("seq:%d dequeue for client_id:%d, using time: ", p.second.first, client_id);
+      //diff.PrintTimer(true);
       bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
       if (is_route_available) {
         tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);

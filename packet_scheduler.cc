@@ -32,18 +32,22 @@ void PktQueue::Enqueue(const char *pkt, uint16_t len, uint32_t seq, MonotonicTim
   UnLock();
 }
 
-void PktQueue::Dequeue(char **buf, uint16_t *len, uint32_t *seq, MonotonicTimer *timer) {
+uint16_t PktQueue::Dequeue(char **buf, uint32_t *seq, MonotonicTimer *timer) {
   Lock();
-  assert(!IsEmpty());
+  if(IsEmpty()) {
+    UnLock();
+    return 0;
+  }
   *buf  = q_.front().first.first;
-  *len = q_.front().first.second; 
+  uint16_t len = q_.front().first.second; 
   *seq  = q_.front().second.first;
   *timer = q_.front().second.second;
   q_.pop();
   SignalEmpty();
   UnLock();
+  return len;
 }
-
+/*
 uint16_t PktQueue::PeekTopPktSize() {
   uint16_t len = 0;
   Lock();
@@ -53,7 +57,7 @@ uint16_t PktQueue::PeekTopPktSize() {
   UnLock();
   return len;
 }
-
+*/
 ActiveList::ActiveList() {
   Pthread_mutex_init(&lock_, NULL);
   Pthread_cond_init(&fill_cond_, NULL);
@@ -121,28 +125,34 @@ void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id, uint32_
 void PktScheduler::Dequeue(vector<pair<pair<char*, uint16_t>, pair<uint32_t, MonotonicTimer> > > *pkts, int *client_id) {
   *client_id = active_list_.Remove();
   pkts->clear();
-  Lock();
-  stats_[*client_id].counter += stats_[*client_id].quantum;
-  char *pkt = NULL;
   uint16_t len = 0;
-  while ((len = queues_[*client_id]->PeekTopPktSize()) > 0) {
-    int pkt_duration = len * 8.0 / stats_[*client_id].throughput;
-    // Not enough time to send this packet.
-    if (stats_[*client_id].counter < pkt_duration) break;
-    MonotonicTimer timer;
-    uint32_t seq;  
-    queues_[*client_id]->Dequeue(&pkt, &len, &seq, &timer);
+  MonotonicTimer timer;
+  Lock();
+  MonotonicTimer diff = timer - last_update_time_[*client_id];
+  if (diff.GetSec() * 1000 + diff.GetMSec() > round_interval_) {
+    counter_[*client_id] += stats_[*client_id].quantum;
+    last_update_time_[*client_id] = timer;
+  }
+  double throughput = stats_[*client_id].throughput;
+  UnLock();
+  char *pkt = NULL;
+  uint32_t seq;
+  while ((len = queues_[*client_id]->Dequeue(&pkt, &seq, &timer)) > 0) { 
     pkts->push_back({{pkt, len}, {seq, timer} });
-    stats_[*client_id].counter -= pkt_duration;
+
+    int pkt_duration = len * 8.0 / throughput;
+    counter_[*client_id] -= pkt_duration;
+
+    if (counter_[*client_id] < 0) break;
+
     //printf("PktScheduler::Dequeue: %d len: %u cnt: %u\n",
     //       *client_id, pkt_duration, stats_[*client_id].counter);
   } 
   if (len == 0) {  // Empty queue.
-    stats_[*client_id].counter = 0;
+    counter_[*client_id] = 0;
   } else {
     active_list_.Append(*client_id);
   }
-  UnLock();
 }
 
 void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs) {
@@ -176,7 +186,10 @@ void PktScheduler::ComputeQuantumThroughputFair() {
   }
   for (auto client_id : client_ids_) {
     stats_[client_id].quantum = stats_[client_id].throughput / total_throughput * round_interval_;
+    //stats_[client_id].quantum = 0;
   }
+  //vector<int>::iterator it = client_ids_.begin();
+  //stats_[*it].quantum = round_interval_;
 }
 
 void PktScheduler::ComputeQuantumEqualThroughput() {

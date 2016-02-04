@@ -13,6 +13,9 @@
 #include "monotonic_timer.h"
 using namespace std;
 
+static unordered_map<int, int> counter_;
+static unordered_map<int, MonotonicTimer> last_update_time_;
+
 class PktQueue {
  public:
   PktQueue() : kMaxSize(0) {}
@@ -21,7 +24,7 @@ class PktQueue {
 
   void Enqueue(const char *pkt, uint16_t len, uint32_t seq, MonotonicTimer timer);
   // Note: The caller needs to deallocate buf.
-  void Dequeue(char **buf, uint16_t *len, uint32_t *seq, MonotonicTimer *timer);
+  uint16_t Dequeue(char **buf, uint32_t *seq, MonotonicTimer *timer);
   // With lock. Return the size of the top packet in bytes.
   // Return 0 if the queue is empty.
   uint16_t PeekTopPktSize();
