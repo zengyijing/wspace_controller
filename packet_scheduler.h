@@ -68,7 +68,8 @@ class PktScheduler {
  public:
   enum FairnessMode {
     kEqualTime = 0,
-    kEqualThroughput = 1,
+    kProportionalThroughput = 1,
+    kEqualThroughput = 2,
   };
 
   struct Status {
@@ -104,6 +105,7 @@ class PktScheduler {
   // No lock.
   void ComputeQuantumEqual();
   void ComputeQuantumThroughputFair();
+  void ComputeQuantumEqualThroughput();
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
 

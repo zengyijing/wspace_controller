@@ -101,14 +101,14 @@ void TestComputeQuantum() {
   cout << "Launch TestComputeQuantum" << endl;
   QuantumTest tests[3];
   tests[0].scheduler = new PktScheduler(1.0, {1, 2, 3}, 5, 1000, PktScheduler::kEqualThroughput);
-  tests[0].stats[1] = {1.5, 333, 0};
-  tests[0].stats[2] = {2, 444, 0};
-  tests[0].stats[3] = {1, 222, 0};
+  tests[0].stats[1] = {1.5, 307, 0};
+  tests[0].stats[2] = {2, 230, 0};
+  tests[0].stats[3] = {1, 461, 0};
   tests[0].throughputs[1] = 1.5;
   tests[0].throughputs[2] = 2;
   tests[0].throughputs[3] = 0.5;
 
-  tests[1].scheduler = new PktScheduler(1.0, {1, 2, 3}, 5, 1000, PktScheduler::kEqualThroughput);
+  tests[1].scheduler = new PktScheduler(1.0, {1, 2, 3}, 5, 1000, PktScheduler::kProportionalThroughput);
   tests[1].stats[1] = {5, 625, 0};
   tests[1].stats[2] = {2, 250, 0};
   tests[1].stats[3] = {1, 125, 0};
@@ -125,11 +125,11 @@ void TestComputeQuantum() {
   tests[2].throughputs[3] = 1;
 
   for (auto &test : tests) {
-	test.scheduler->ComputeQuantum(test.throughputs);
-	auto stats = test.scheduler->stats();
+    test.scheduler->ComputeQuantum(test.throughputs);
+    auto stats = test.scheduler->stats();
     cout << "Mode: " << test.scheduler->fairness_mode() << endl;
-	test.scheduler->PrintStats();
-	assert(stats == test.stats);
+    test.scheduler->PrintStats();
+    assert(stats == test.stats);
     delete test.scheduler;
   } 
   cout << "TestComputeQuantum good!" << endl;
@@ -262,7 +262,7 @@ void TestSchedulerQueue() {
 int main(int argc, char **argv) {
   //TestPktQueue();
   //TestActiveList();
-  //TestComputeQuantum();
-  TestSchedulerQueue();
+  TestComputeQuantum();
+  //TestSchedulerQueue();
   return 0;
 }

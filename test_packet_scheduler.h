@@ -7,6 +7,7 @@
 #include <cassert>
 #include <queue>
 #include <utility>
+#include <unistd.h>
 
 #include "packet_scheduler.h"
 

@@ -417,6 +417,8 @@ void* WspaceController::ReadTun(void *arg) {
       continue;
     }
     packet_scheduler_->Enqueue(pkt, len, client_id);
+    //int min_duration =  len * 8.0 / (54.0 * client_ids_.size());
+    //usleep(min_duration);
   }
   delete[] pkt;
 }
