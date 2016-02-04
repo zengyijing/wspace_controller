@@ -212,8 +212,8 @@ bool RoutingTable::FindRoute(int dest_id, int* bs_id, BSInfo *info) {
   Lock();
   found = route_.count(dest_id);
   if (found) {
-      *bs_id = route_[dest_id];
-      *info = bs_tbl_[*bs_id];
+    *bs_id = route_[dest_id];
+    *info = bs_tbl_[*bs_id];
   }
   UnLock();
   return found;
@@ -417,8 +417,8 @@ void* WspaceController::ReadTun(void *arg) {
       continue;
     }
     packet_scheduler_->Enqueue(pkt, len, client_id);
-    //int min_duration =  len * 8.0 / (54.0 * client_ids_.size());
-    //usleep(min_duration);
+    int min_duration =  len * 8.0 / (54.0 * client_ids_.size());
+    usleep(min_duration);
   }
   delete[] pkt;
 }
