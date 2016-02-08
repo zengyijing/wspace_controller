@@ -230,12 +230,25 @@ void* WspaceController::RecvFromBS(void* arg) {
       if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id][client_id] < seq) {
         current_seq[bs_id][client_id] = seq;
         bs_stats_tbl_.Update(client_id, 2, bs_id, throughput);
+        printf("throughput is %.3f\n", throughput);
       } else {
         Perror("WspaceController::RecvFromBS: Received invalid BSStatsPkt\n");
       }
     } else if (pkt[0] == CELL_DATA) {
       //printf("received uplink data message.\n");
       tun_.Write(Tun::kTun, pkt + CELL_DATA_HEADER_SIZE, nread - CELL_DATA_HEADER_SIZE, NULL);
+    } else if (pkt[0] == DATA_ACK || pkt[0] == RAW_ACK) {
+      // Send Ack to corresponding bs.
+      AckHeader *hdr = (AckHeader*)pkt;
+      struct sockaddr_in bs_addr;
+      tun_.CreateAddr(tun_.bs_ip_tbl_[hdr->bs_id()], PORT_ETH, &bs_addr);
+      tun_.Write(Tun::kControl, pkt, nread, &bs_addr);
+    } else if (pkt[0] == GPS) {
+      // Send gps message to default bs.
+      GPSHeader *hdr = (GPSHeader*)pkt;
+      struct sockaddr_in bs_addr;
+      tun_.CreateAddr(tun_.bs_ip_tbl_.begin()->second, PORT_ETH, &bs_addr);
+      tun_.Write(Tun::kControl, pkt, nread, &bs_addr);
     }
   }
   delete[] pkt;

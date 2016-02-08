@@ -29,8 +29,8 @@ static const int kMaxRawBufSize = 4000;
 #define ATH_DATA 1
 #define ATH_CODE 2
 #define DATA_ACK 3
-#define RAW_FRONT_ACK 4
-#define RAW_BACK_ACK 5
+#define ATH_PROBE 4
+#define RAW_ACK 5
 #define CELL_DATA 6
 #define GPS 7
 #define BS_STATS 8
@@ -529,13 +529,20 @@ class AckHeader {
 
   void set_num_pkts(uint16 num_pkts) { num_pkts_ = num_pkts; }
 
+
+  void set_ids(int client_id, int bs_id) { client_id_ = client_id; bs_id_ = bs_id; }
+  int client_id() const { return client_id_; }
+  int bs_id() const { return bs_id_; }
+
 // Data
   char type_;
-  uint32 ack_seq_;          // Record the sequence number of ack 
-  uint16 num_nacks_;        // number of nacks in the packet
-  uint32 start_nack_seq_;   // Starting sequence number of nack
-  uint32 end_seq_;          // The end of this ack window - could be a good pkt or a bad pkt 
+  uint16 num_nacks_;        // number of nacks in the packet 
   uint16 num_pkts_;          // Total number of packets included in this ack. 
+  uint32 ack_seq_;          // Record the sequence number of ack 
+  uint32 start_nack_seq_;   // Starting sequence number of nack
+  uint32 end_seq_;          // The end of this ack window - could be a good pkt or a bad pkt
+  int client_id_;
+  int bs_id_;
 }; 
 
 class GPSHeader {
