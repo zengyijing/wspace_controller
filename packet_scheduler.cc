@@ -17,19 +17,22 @@ PktQueue::~PktQueue() {
   Pthread_cond_destroy(&empty_cond_);
 }
 
-void PktQueue::Enqueue(const char *pkt, uint16_t len) {
+bool PktQueue::Enqueue(const char *pkt, uint16_t len) {
   if (len <= 0) {
     perror("PktQueue::Enqueue invalid len\n");
     exit(0);
   }
   Lock();
-  while (IsFull()) {
-    WaitEmpty();
-  }  
-  char *buf = new char[len];
-  memcpy(buf, pkt, len);
-  q_.push(make_pair(buf, len));
-  UnLock();
+  if (IsFull()) {
+    UnLock();
+    return false;
+  } else {
+    char *buf = new char[len];
+    memcpy(buf, pkt, len);
+    q_.push(make_pair(buf, len));
+    UnLock();
+    return true;
+  }
 }
 
 void PktQueue::Dequeue(char **buf, uint16_t *len) {
@@ -112,8 +115,10 @@ PktScheduler::~PktScheduler() {
 }
 
 void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id) {
-  queues_[client_id]->Enqueue(pkt, len); 
-  active_list_.Append(client_id);
+  if (queues_[client_id]->Enqueue(pkt, len)) {
+    //printf("enqueue for client:%d\n", client_id);
+    active_list_.Append(client_id);
+  }
 }
 
 void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id) {
@@ -130,8 +135,9 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id)
     queues_[*client_id]->Dequeue(&pkt, &len);
     pkts->push_back({pkt, len});
     stats_[*client_id].counter -= pkt_duration;
-    //printf("PktScheduler::Dequeue: %d len: %u cnt: %u\n",
-    //       *client_id, pkt_duration, stats_[*client_id].counter);
+    usleep(pkt_duration);
+    //printf("Dequeue: %d len: %u pkt_dur: %u cnt: %u pkt_count: %u queue_size: %d\n",
+    //       *client_id, len, pkt_duration, stats_[*client_id].counter, ++stats_[*client_id].pkt_count, queues_[*client_id]->GetLength());
   } 
   if (len == 0) {  // Empty queue.
     stats_[*client_id].counter = 0;

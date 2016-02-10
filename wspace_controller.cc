@@ -63,6 +63,13 @@ void BSStatsTable::GetStats(unordered_map<int, unordered_map<int, double> > *sta
   UnLock();
 }
 
+double BSStatsTable::GetThroughput(int client_id, int bs_id) {
+  Lock();
+  double throughput = stats_[client_id][bs_id];
+  UnLock();
+  return throughput;
+}
+
 RoutingTable::RoutingTable() {
   Pthread_mutex_init(&lock_, NULL);
 }
@@ -410,15 +417,14 @@ void* WspaceController::ReadTun(void *arg) {
   char *pkt = new char[PKT_SIZE];
   while (true) { 
     uint16 len = tun_.Read(Tun::kTun, pkt, PKT_SIZE);
-    //printf("read %d bytes from tun to %s\n", len, ip_tun);
     int client_id = ExtractClientID(pkt);
     if (client_original_seq_tbl_.count(client_id) == 0) {
       printf("Traffic to an unknown client:%d, continue.\n", client_id);
       continue;
     }
     packet_scheduler_->Enqueue(pkt, len, client_id);
-    int min_duration =  len * 8.0 / (54.0 * client_ids_.size());
-    usleep(min_duration);
+    //int min_duration =  len * 8.0 / (54.0 * client_ids_.size());
+    //usleep(min_duration);
   }
   delete[] pkt;
 }
@@ -448,14 +454,22 @@ void* WspaceController::ForwardToBS(void* arg) {
         tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
         //printf("convert address to %s\n", info.ip_eth);
         tun_.Write(Tun::kControl, buf, len, &bs_addr);
+        //int min_duration =  len * 8.0 / bs_stats_tbl_.GetThroughput(client_id, bs_id);
+        //usleep(min_duration);
       } else {
         printf("No route to the client[%d]\n", client_id);
+        //int min_duration = -1;
         for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
           printf("broadcast through bs %d/%s\n", it->first, it->second);
           tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
           tun_.Write(Tun::kControl, buf, len, &bs_addr);
+          //int duration = len * 8.0 / bs_stats_tbl_.GetThroughput(client_id, it->first);
+          //if(min_duration == -1 || duration < min_duration)
+          //  min_duration = duration;
         }
+        //usleep(min_duration);
       }
+
     }
   }
   delete[] buf;

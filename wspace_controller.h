@@ -13,7 +13,7 @@
 #include "tun.h"
 #include "packet_scheduler.h"
 
-#define MIN_THROUGHPUT 1
+#define MIN_THROUGHPUT 0.01
 #define PKT_QUEUE_SIZE 1000 
 
 class BSStatsTable {
@@ -24,6 +24,8 @@ class BSStatsTable {
   void Update(int client_id, int bs_id, double throughput);
   // Only update existing values in stats_.
   void GetStats(unordered_map<int, unordered_map<int, double> > *stats);
+
+  double GetThroughput(int client_id, int bs_id);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }

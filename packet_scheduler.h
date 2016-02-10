@@ -8,6 +8,7 @@
 #include <utility>
 #include <unordered_map>
 #include <unordered_set>
+#include <unistd.h>
 
 #include "pthread_wrapper.h"
 
@@ -19,13 +20,13 @@ class PktQueue {
   PktQueue(size_t max_size);
   ~PktQueue();
 
-  void Enqueue(const char *pkt, uint16_t len);
+  bool Enqueue(const char *pkt, uint16_t len);
   // Note: The caller needs to deallocate buf.
   void Dequeue(char **buf, uint16_t *len);
   // With lock. Return the size of the top packet in bytes.
   // Return 0 if the queue is empty.
   uint16_t PeekTopPktSize();
-
+  int GetLength() { return q_.size(); }
  private:
   bool IsFull() { return q_.size() == kMaxSize; }
   bool IsEmpty() { return q_.empty(); }
@@ -76,10 +77,10 @@ class PktScheduler {
     double throughput;
     int quantum;  // time slot to send packets in microseconds.
     int counter;
-
-    Status() : throughput(0.0), quantum(0), counter(0) {} 
+    //unsigned long pkt_count;
+    Status() : throughput(0.0), quantum(0), counter(0)/*, pkt_count(0)*/ {} 
     Status(double throughput, int quantum, int counter) :
-        throughput(throughput), quantum(quantum), counter(counter) {}
+        throughput(throughput), quantum(quantum), counter(counter)/*, pkt_count(0)*/ {}
     friend bool operator==(const Status &l, const Status &r);
   }; 
 
