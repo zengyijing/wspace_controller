@@ -17,13 +17,11 @@ int main(int argc, char **argv) {
   Pthread_create(&wspace_controller->p_compute_route_, NULL, LaunchComputeRoutes, NULL);
   Pthread_create(&wspace_controller->p_read_tun_, NULL, LaunchReadTun, NULL);
   Pthread_create(&wspace_controller->p_forward_to_bs_, NULL, LaunchForwardToBS, NULL);
-  Pthread_create(&wspace_controller->p_dequeue_from_buf_, NULL, LaunchDequeueFromBuf, NULL);
 
   Pthread_join(wspace_controller->p_recv_from_bs_, NULL);
   Pthread_join(wspace_controller->p_compute_route_, NULL);
   Pthread_join(wspace_controller->p_read_tun_, NULL);
   Pthread_join(wspace_controller->p_forward_to_bs_, NULL);
-  Pthread_join(wspace_controller->p_dequeue_from_buf_, NULL);
 
   delete wspace_controller;
   return 0;
@@ -43,10 +41,6 @@ void* LaunchReadTun(void* arg) {
 
 void* LaunchForwardToBS(void* arg) {
   wspace_controller->ForwardToBS(arg);
-}
-
-void* LaunchDequeueFromBuf(void* arg) {
-  wspace_controller->DequeueFromBuf(arg);
 }
 
 BSStatsTable::BSStatsTable() {
@@ -428,16 +422,11 @@ void* WspaceController::ReadTun(void *arg) {
       printf("Traffic to an unknown client:%d, continue.\n", client_id);
       continue;
     }
-    packet_scheduler_->EnqueueToBuf(pkt, len, client_id);
+    packet_scheduler_->Enqueue(pkt, len, client_id);
+    //int min_duration =  len * 8.0 / (54.0 * client_ids_.size());
+    //usleep(min_duration);
   }
   delete[] pkt;
-}
-
-void* WspaceController::DequeueFromBuf(void* arg) {
-  while (1) {
-    packet_scheduler_->DequeueFromBuf();
-  }
-  return (void*)NULL;
 }
 
 void* WspaceController::ForwardToBS(void* arg) {
@@ -445,33 +434,42 @@ void* WspaceController::ForwardToBS(void* arg) {
   char *buf = new char[PKT_SIZE];
   struct sockaddr_in bs_addr;
   BSInfo info;
-  char* pkt;
+  vector<pair<char*, uint16_t> > pkts;
   ((ControllerToClientHeader*)buf)->set_type(CONTROLLER_TO_CLIENT);
   while (1) {
-    uint16_t len = 0;
-    packet_scheduler_->DequeueToSend(pkt, &len, &client_id);
+    packet_scheduler_->Dequeue(&pkts, &client_id);
     if(!tun_.IsValidClient(client_id)) {
       Perror("WspaceController::ForwardToBS: Invalid client[%d]!\n", client_id);
     }
     ((ControllerToClientHeader*)buf)->set_client_id(client_id);
     ((ControllerToClientHeader*)buf)->set_o_seq(++client_original_seq_tbl_[client_id]);
     // Send packets from a client in a round.
-
-    memcpy(buf + sizeof(ControllerToClientHeader), pkt, len);
-    delete[] pkt;
-    len += sizeof(ControllerToClientHeader);
-    int bs_id = 0;
-    bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
-    if (is_route_available) {
-      tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
-      tun_.Write(Tun::kControl, buf, len, &bs_addr);
-    } else {
-      printf("No route to the client[%d]\n", client_id);
-      for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
-        printf("broadcast through bs %d/%s\n", it->first, it->second);
-        tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
+    for (auto &p : pkts) {
+      memcpy(buf + sizeof(ControllerToClientHeader), p.first, p.second);
+      delete[] p.first;
+      uint16 len = p.second + sizeof(ControllerToClientHeader);
+      int bs_id = 0;
+      bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
+      if (is_route_available) {
+        tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
+        //printf("convert address to %s\n", info.ip_eth);
         tun_.Write(Tun::kControl, buf, len, &bs_addr);
+        //int min_duration =  len * 8.0 / bs_stats_tbl_.GetThroughput(client_id, bs_id);
+        //usleep(min_duration);
+      } else {
+        printf("No route to the client[%d]\n", client_id);
+        //int min_duration = -1;
+        for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
+          printf("broadcast through bs %d/%s\n", it->first, it->second);
+          tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
+          tun_.Write(Tun::kControl, buf, len, &bs_addr);
+          //int duration = len * 8.0 / bs_stats_tbl_.GetThroughput(client_id, it->first);
+          //if(min_duration == -1 || duration < min_duration)
+          //  min_duration = duration;
+        }
+        //usleep(min_duration);
       }
+
     }
   }
   delete[] buf;

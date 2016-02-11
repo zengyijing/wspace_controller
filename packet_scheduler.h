@@ -11,7 +11,6 @@
 #include <unistd.h>
 
 #include "pthread_wrapper.h"
-#include "wspace_asym_util.h"
 
 using namespace std;
 
@@ -21,9 +20,9 @@ class PktQueue {
   PktQueue(size_t max_size);
   ~PktQueue();
 
-  bool Enqueue(const char *pkt, uint16_t len, int client_id);
+  bool Enqueue(const char *pkt, uint16_t len);
   // Note: The caller needs to deallocate buf.
-  void Dequeue(char *&buf, uint16_t *len, int *client_id);
+  void Dequeue(char **buf, uint16_t *len);
   // With lock. Return the size of the top packet in bytes.
   // Return 0 if the queue is empty.
   uint16_t PeekTopPktSize();
@@ -35,14 +34,11 @@ class PktQueue {
   void UnLock() { Pthread_mutex_unlock(&lock_); }
   void WaitEmpty() { Pthread_cond_wait(&empty_cond_, &lock_); }
   void SignalEmpty() { Pthread_cond_signal(&empty_cond_); }
-  void WaitFill() { Pthread_cond_wait(&fill_cond_, &lock_); }
-  void SignalFill() { Pthread_cond_signal(&fill_cond_); }
 
   size_t kMaxSize;
-  queue<pair<int, pair<char*, uint16_t> > > q_;  // <client_id, <Packet buffer address, length> >.
+  queue<pair<char*, uint16_t> > q_;  // <Packet buffer address, length>.
   pthread_mutex_t lock_;
   pthread_cond_t empty_cond_;
-  pthread_cond_t fill_cond_;
 };
 
 // Track clients with non-empty queues.
@@ -95,10 +91,8 @@ class PktScheduler {
          const FairnessMode &fairness_mode);
   ~PktScheduler();
 
-  void EnqueueToBuf(const char *pkt, uint16_t len, int client_id);
-  void DequeueFromBuf();
-  void EnqueueToSend(const char *pkt, uint16_t len, int client_id);
-  void DequeueToSend(char *&pkt, uint16_t *len, int *client_id);
+  void Enqueue(const char *pkt, uint16_t len, int client_id);
+  void Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id);
   // throughputs: <client_id, throughput>.
   void ComputeQuantum(const unordered_map<int, double> &throughputs);
 
@@ -119,8 +113,7 @@ class PktScheduler {
   const double kMinThroughput;
   vector<int> client_ids_;
   unordered_map<int, PktQueue*> queues_;   // <client_id, pkt_queue>.
-  unordered_map<int, Status>    stats_;    // <client_id, status>.
-  PktQueue sending_queue_; 
+  unordered_map<int, Status>    stats_;    // <client_id, status>. 
   ActiveList active_list_;
   // Duration of scheduling all the clients per round in microseconds.
   uint32_t round_interval_;

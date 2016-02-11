@@ -102,14 +102,13 @@ class WspaceController {
   void* ComputeRoutes(void *arg);
   void* ReadTun(void *arg);
   void* ForwardToBS(void *arg);
-  void* DequeueFromBuf(void *arg);
 
   void Init();
   void ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table);
   int ExtractClientID(const char *pkt);
 
 // Data member
-  pthread_t p_recv_from_bs_, p_compute_route_, p_read_tun_, p_forward_to_bs_, p_dequeue_from_buf_;
+  pthread_t p_recv_from_bs_, p_compute_route_, p_read_tun_, p_forward_to_bs_;
 
   BSStatsTable bs_stats_tbl_;
   RoutingTable routing_tbl_;  
@@ -131,5 +130,5 @@ void* LaunchRecvFromBS(void* arg);
 void* LaunchComputeRoutes(void* arg);
 void* LaunchReadTun(void* arg);
 void* LaunchForwardToBS(void* arg);
-void* LaunchDequeueFromBuf(void* arg);
+
 #endif
