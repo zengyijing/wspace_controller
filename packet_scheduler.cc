@@ -4,20 +4,22 @@
 PktQueue::PktQueue(size_t max_size) : kMaxSize(max_size) {
   Pthread_mutex_init(&lock_, NULL);
   Pthread_cond_init(&empty_cond_, NULL);
+  Pthread_cond_init(&fill_cond_, NULL);
 }
 
 PktQueue::~PktQueue() {
   Lock();
   while (!q_.empty()) {
-    delete[] q_.front().first;
+    delete[] q_.front().second.first;
     q_.pop();
   }
   UnLock();
   Pthread_mutex_destroy(&lock_);
   Pthread_cond_destroy(&empty_cond_);
+  Pthread_cond_destroy(&fill_cond_);
 }
 
-bool PktQueue::Enqueue(const char *pkt, uint16_t len) {
+bool PktQueue::Enqueue(const char *pkt, uint16_t len, int client_id) {
   if (len <= 0) {
     perror("PktQueue::Enqueue invalid len\n");
     exit(0);
@@ -29,17 +31,21 @@ bool PktQueue::Enqueue(const char *pkt, uint16_t len) {
   } else {
     char *buf = new char[len];
     memcpy(buf, pkt, len);
-    q_.push(make_pair(buf, len));
+    q_.push(make_pair(client_id, make_pair(buf, len)));
+    SignalFill();
     UnLock();
     return true;
   }
 }
 
-void PktQueue::Dequeue(char **buf, uint16_t *len) {
+void PktQueue::Dequeue(char *&buf, uint16_t *len, int *client_id) {
   Lock();
-  assert(!IsEmpty());
-  *buf  = q_.front().first;
-  *len = q_.front().second; 
+  if(IsEmpty()) {
+    WaitFill();
+  }
+  *client_id = q_.front().first;
+  buf  = q_.front().second.first;
+  *len = q_.front().second.second; 
   q_.pop();
   SignalEmpty();
   UnLock();
@@ -49,7 +55,7 @@ uint16_t PktQueue::PeekTopPktSize() {
   uint16_t len = 0;
   Lock();
   if (!IsEmpty()) {
-    len = q_.front().second;
+    len = q_.front().second.second;
   }
   UnLock();
   return len;
@@ -97,7 +103,7 @@ PktScheduler::PktScheduler(double min_throughput,
                            uint32_t pkt_queue_size,
                            uint32_t round_interval, 
                            const FairnessMode &fairness_mode) 
-    : kMinThroughput(min_throughput), client_ids_(client_ids), 
+    : kMinThroughput(min_throughput), client_ids_(client_ids), sending_queue_(pkt_queue_size),
       round_interval_(round_interval), fairness_mode_(fairness_mode) {
   for (auto client_id : client_ids_) {
     queues_[client_id] = new PktQueue(pkt_queue_size);
@@ -114,37 +120,48 @@ PktScheduler::~PktScheduler() {
   Pthread_mutex_destroy(&lock_);
 }
 
-void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id) {
-  if (queues_[client_id]->Enqueue(pkt, len)) {
+void PktScheduler::EnqueueToBuf(const char *pkt, uint16_t len, int client_id) {
+  if (queues_[client_id]->Enqueue(pkt, len, client_id)) {
     //printf("enqueue for client:%d\n", client_id);
     active_list_.Append(client_id);
   }
 }
 
-void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id) {
-  *client_id = active_list_.Remove();
-  pkts->clear();
+void PktScheduler::DequeueFromBuf() {
+  int client_id = active_list_.Remove();
   Lock();
-  stats_[*client_id].counter += stats_[*client_id].quantum;
+  stats_[client_id].counter += stats_[client_id].quantum;
   char *pkt = NULL;
   uint16_t len = 0;
-  while ((len = queues_[*client_id]->PeekTopPktSize()) > 0) {
-    int pkt_duration = len * 8.0 / stats_[*client_id].throughput;
+  while ((len = queues_[client_id]->PeekTopPktSize()) > 0) {
+    int pkt_duration = len * 8.0 / stats_[client_id].throughput;
     // Not enough time to send this packet.
-    if (stats_[*client_id].counter < pkt_duration) break;  
-    queues_[*client_id]->Dequeue(&pkt, &len);
-    pkts->push_back({pkt, len});
-    stats_[*client_id].counter -= pkt_duration;
+    if (stats_[client_id].counter < pkt_duration) break;
+    int client = 0;  
+    queues_[client_id]->Dequeue(pkt, &len, &client);
+    assert(client == client_id);
+    EnqueueToSend(pkt, len, client_id);
+    delete[] pkt;
+    stats_[client_id].counter -= pkt_duration;
     usleep(pkt_duration);
     //printf("Dequeue: %d len: %u pkt_dur: %u cnt: %u pkt_count: %u queue_size: %d\n",
     //       *client_id, len, pkt_duration, stats_[*client_id].counter, ++stats_[*client_id].pkt_count, queues_[*client_id]->GetLength());
   } 
   if (len == 0) {  // Empty queue.
-    stats_[*client_id].counter = 0;
+    stats_[client_id].counter = 0;
   } else {
-    active_list_.Append(*client_id);
+    active_list_.Append(client_id);
   }
   UnLock();
+}
+
+void PktScheduler::EnqueueToSend(const char *pkt, uint16_t len, int client_id) {
+  if (sending_queue_.Enqueue(pkt, len, client_id) == false)
+    Perror("Sending queue is full!\n");
+}
+
+void PktScheduler::DequeueToSend(char *&pkt, uint16_t *len, int *client_id) {
+  sending_queue_.Dequeue(pkt, len, client_id);
 }
 
 void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs) {
