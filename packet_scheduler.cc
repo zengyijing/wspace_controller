@@ -145,7 +145,7 @@ void PktScheduler::DequeueFromBuf() {
     stats_[client_id].counter -= pkt_duration;
     usleep(pkt_duration);
     //printf("Dequeue: %d len: %u pkt_dur: %u cnt: %u pkt_count: %u queue_size: %d\n",
-    //       *client_id, len, pkt_duration, stats_[*client_id].counter, ++stats_[*client_id].pkt_count, queues_[*client_id]->GetLength());
+    //       client_id, len, pkt_duration, stats_[client_id].counter, ++stats_[client_id].pkt_count, queues_[client_id]->GetLength());
   } 
   if (len == 0) {  // Empty queue.
     stats_[client_id].counter = 0;
