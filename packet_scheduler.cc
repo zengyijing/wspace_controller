@@ -135,7 +135,6 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id)
     queues_[*client_id]->Dequeue(&pkt, &len);
     pkts->push_back({pkt, len});
     stats_[*client_id].counter -= pkt_duration;
-    usleep(pkt_duration);
     //printf("Dequeue: %d len: %u pkt_dur: %u cnt: %u pkt_count: %u queue_size: %d\n",
     //       *client_id, len, pkt_duration, stats_[*client_id].counter, ++stats_[*client_id].pkt_count, queues_[*client_id]->GetLength());
   } 
