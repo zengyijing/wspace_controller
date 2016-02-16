@@ -112,6 +112,7 @@ class PktScheduler {
 
   const double kMinThroughput;
   vector<int> client_ids_;
+  uint32_t pkt_queue_size_;
   unordered_map<int, PktQueue*> queues_;   // <client_id, pkt_queue>.
   unordered_map<int, Status>    stats_;    // <client_id, status>. 
   ActiveList active_list_;

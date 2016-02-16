@@ -424,6 +424,7 @@ void* WspaceController::ReadTun(void *arg) {
       printf("Traffic to an unknown client:%d, continue.\n", client_id);
       continue;
     }
+    // @yijing: check contention domain. client-id -> bs_id -> contention id.
     packet_scheduler_->Enqueue(pkt, len, client_id);
   }
   delete[] pkt;

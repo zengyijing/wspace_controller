@@ -98,7 +98,8 @@ PktScheduler::PktScheduler(double min_throughput,
                            uint32_t round_interval, 
                            const FairnessMode &fairness_mode) 
     : kMinThroughput(min_throughput), client_ids_(client_ids), 
-      round_interval_(round_interval), fairness_mode_(fairness_mode) {
+      pkt_queue_size_(pkt_queue_size), round_interval_(round_interval), 
+      fairness_mode_(fairness_mode) {
   for (auto client_id : client_ids_) {
     queues_[client_id] = new PktQueue(pkt_queue_size);
     stats_[client_id].quantum = (double) round_interval_/client_ids_.size(); 
@@ -122,7 +123,11 @@ void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id) {
 }
 
 void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id) {
-  *client_id = active_list_.Remove();
+  // @yijing: handle the case client_id is not in stats.
+  while(true) {
+    *client_id = active_list_.Remove();
+    if (stats_.count(*client_id)) break;
+  }
   pkts->clear();
   Lock();
   stats_[*client_id].counter += stats_[*client_id].quantum;
@@ -154,7 +159,15 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   for (const auto &p : throughputs) {
     client_ids_.push_back(p.first);
     stats_[p.first].throughput = max(kMinThroughput, p.second);
+    if (queues_.count(client_id) == 0) {
+      queues_[client_id] = new PktQueue(pkt_queue_size_);
+    }
   }
+  for (auto it = queues_.begin(); it != queues_.end(); ++it) {
+    if (throughputs.count(it->first) == 0) {
+      queues_.erase(it);
+    }
+  }  
   switch(fairness_mode()) {
     case kEqualTime:
       ComputeQuantumEqualTime();
