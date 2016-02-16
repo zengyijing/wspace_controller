@@ -75,11 +75,11 @@ class PktScheduler {
 
   struct Status {
     double throughput;
-    int quantum;  // time slot to send packets in microseconds.
-    int counter;
+    double quantum;  // time slot to send packets in microseconds.
+    double counter;
     //unsigned long pkt_count;
-    Status() : throughput(0.0), quantum(0), counter(0)/*, pkt_count(0)*/ {} 
-    Status(double throughput, int quantum, int counter) :
+    Status() : throughput(0.0), quantum(0.0), counter(0.0)/*, pkt_count(0)*/ {} 
+    Status(double throughput, double quantum, double counter) :
         throughput(throughput), quantum(quantum), counter(counter)/*, pkt_count(0)*/ {}
     friend bool operator==(const Status &l, const Status &r);
   }; 
@@ -104,8 +104,8 @@ class PktScheduler {
 
  private:
   // No lock.
-  void ComputeQuantumEqual();
-  void ComputeQuantumThroughputFair();
+  void ComputeQuantumEqualTime();
+  void ComputeQuantumProportionalThroughput();
   void ComputeQuantumEqualThroughput();
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }

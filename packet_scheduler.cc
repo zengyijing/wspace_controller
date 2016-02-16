@@ -101,8 +101,8 @@ PktScheduler::PktScheduler(double min_throughput,
       round_interval_(round_interval), fairness_mode_(fairness_mode) {
   for (auto client_id : client_ids_) {
     queues_[client_id] = new PktQueue(pkt_queue_size);
-    stats_[client_id].quantum = round_interval_/client_ids_.size(); 
-    stats_[client_id].throughput = kMinThroughput;  // At least 1Mbps.
+    stats_[client_id].quantum = (double) round_interval_/client_ids_.size(); 
+    stats_[client_id].throughput = kMinThroughput;  // At least 0.01Mbps.
   }
   Pthread_mutex_init(&lock_, NULL);
 }
@@ -153,11 +153,11 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   }
   switch(fairness_mode()) {
     case kEqualTime:
-      ComputeQuantumEqual();
+      ComputeQuantumEqualTime();
       break;
 
     case kProportionalThroughput:
-      ComputeQuantumThroughputFair();
+      ComputeQuantumProportionalThroughput();
       break;
 
     case kEqualThroughput:
@@ -170,7 +170,7 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   UnLock();
 }
 
-void PktScheduler::ComputeQuantumThroughputFair() {
+void PktScheduler::ComputeQuantumProportionalThroughput() {
   double total_throughput = 0;
   for (auto client_id : client_ids_) {
     total_throughput += stats_[client_id].throughput;
@@ -181,14 +181,10 @@ void PktScheduler::ComputeQuantumThroughputFair() {
 }
 
 void PktScheduler::ComputeQuantumEqualThroughput() {
-  double total_throughput = 0;
-  for (auto client_id : client_ids_) {
-    total_throughput += stats_[client_id].throughput;
-  }
   double *proportion = new double[client_ids_.size()];
   double sum = 0;
   for (int i = 0; i < client_ids_.size(); ++i) {
-    proportion[i] = total_throughput / stats_[client_ids_[i]].throughput;
+    proportion[i] = 1.0 / stats_[client_ids_[i]].throughput;
     sum += proportion[i];
   }
   for (int i = 0; i < client_ids_.size(); ++i) {
@@ -197,9 +193,9 @@ void PktScheduler::ComputeQuantumEqualThroughput() {
   delete[] proportion; 
 }
 
-void PktScheduler::ComputeQuantumEqual() {
+void PktScheduler::ComputeQuantumEqualTime() {
   for (auto client_id : client_ids_) {
-    stats_[client_id].quantum = round_interval_/client_ids_.size(); 
+    stats_[client_id].quantum = ((double)round_interval_)/client_ids_.size(); 
   }
 }
 
@@ -214,7 +210,7 @@ void PktScheduler::PrintStats() {
   Lock();
   printf("===PktScheduler: client: throughput quantum counter===\n");
   for (auto client_id: client_ids_) {
-    printf("%d: %3f %d %d\n", client_id, stats_[client_id].throughput, 
+    printf("%d: %3f %3f %3f\n", client_id, stats_[client_id].throughput, 
                            stats_[client_id].quantum, stats_[client_id].counter);
   }
   UnLock();
