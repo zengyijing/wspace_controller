@@ -397,6 +397,8 @@ void* WspaceController::ComputeRoutes(void* arg) {
   unordered_map<int, double> throughputs; 
   while(1) {
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, use_optimizer_);
+    // @yijing: split throughputs among contention domains. Then let each 
+    // packet scheduler to compute quantum.
     packet_scheduler_->ComputeQuantum(throughputs);
     packet_scheduler_->PrintStats();
     usleep(update_route_interval_);  

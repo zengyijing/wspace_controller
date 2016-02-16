@@ -148,7 +148,11 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id)
 
 void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs) {
   Lock();
+  // @yijing: Clear stats and client_ids and re-populate it.
+  stats_.clear();
+  client_ids_.clear();
   for (const auto &p : throughputs) {
+    client_ids_.push_back(p.first);
     stats_[p.first].throughput = max(kMinThroughput, p.second);
   }
   switch(fairness_mode()) {
