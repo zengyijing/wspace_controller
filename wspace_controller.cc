@@ -401,6 +401,8 @@ void* WspaceController::ComputeRoutes(void* arg) {
   unordered_map<int, double> throughputs; 
   while(1) {
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, use_optimizer_);
+    // @yijing: split throughputs among contention domains. Then let each 
+    // packet scheduler to compute quantum.
     packet_scheduler_->ComputeQuantum(throughputs);
     packet_scheduler_->PrintStats();
     usleep(update_route_interval_);  
@@ -426,6 +428,7 @@ void* WspaceController::ReadTun(void *arg) {
       printf("Traffic to an unknown client:%d, continue.\n", client_id);
       continue;
     }
+    // @yijing: check contention domain. client-id -> bs_id -> contention id.
     packet_scheduler_->Enqueue(pkt, len, client_id);
   }
   delete[] pkt;
