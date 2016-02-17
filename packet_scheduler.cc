@@ -101,7 +101,7 @@ PktScheduler::PktScheduler(double min_throughput,
       round_interval_(round_interval), fairness_mode_(fairness_mode) {
   for (auto client_id : client_ids_) {
     queues_[client_id] = new PktQueue(pkt_queue_size);
-    stats_[client_id].quantum = (double) round_interval_/client_ids_.size(); 
+    stats_[client_id].quantum = double(round_interval_)/client_ids_.size(); 
     stats_[client_id].throughput = kMinThroughput;  // At least 0.01Mbps.
   }
   Pthread_mutex_init(&lock_, NULL);
@@ -195,7 +195,7 @@ void PktScheduler::ComputeQuantumEqualThroughput() {
 
 void PktScheduler::ComputeQuantumEqualTime() {
   for (auto client_id : client_ids_) {
-    stats_[client_id].quantum = ((double)round_interval_)/client_ids_.size(); 
+    stats_[client_id].quantum = double(round_interval_)/client_ids_.size(); 
   }
 }
 

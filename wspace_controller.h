@@ -25,7 +25,7 @@ class BSStatsTable {
   // Only update existing values in stats_.
   void GetStats(unordered_map<int, unordered_map<int, double> > *stats);
 
-  double GetThroughput(int client_id, int bs_id);
+  bool GetThroughput(int client_id, int bs_id, double* throughput);
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }

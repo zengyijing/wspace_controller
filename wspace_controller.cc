@@ -63,11 +63,15 @@ void BSStatsTable::GetStats(unordered_map<int, unordered_map<int, double> > *sta
   UnLock();
 }
 
-double BSStatsTable::GetThroughput(int client_id, int bs_id) {
+bool BSStatsTable::GetThroughput(int client_id, int bs_id, double* throughput) {
+  bool find_throughput = false;
   Lock();
-  double throughput = stats_[client_id][bs_id];
+  if (stats_[client_id].count(bs_id) > 0) {
+    *throughput = stats_[client_id][bs_id];
+    find_throughput = true;
+  }
   UnLock();
-  return throughput;
+  return find_throughput;
 }
 
 RoutingTable::RoutingTable() {
@@ -448,26 +452,23 @@ void* WspaceController::ForwardToBS(void* arg) {
       uint16 len = p.second + sizeof(ControllerToClientHeader);
       int bs_id = 0;
       bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
+      int duration = len * 8;
+      double throughput = 0;
       if (is_route_available) {
         tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
         //printf("convert address to %s\n", info.ip_eth);
         tun_.Write(Tun::kControl, buf, len, &bs_addr);
-        int min_duration =  len * 8.0 / bs_stats_tbl_.GetThroughput(client_id, bs_id);
-        usleep(min_duration);
+        if (bs_stats_tbl_.GetThroughput(client_id, bs_id, &throughput))
+          duration =  len * 8.0 / throughput;
       } else {
         printf("No route to the client[%d]\n", client_id);
-        int min_duration = -1;
         for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
           printf("broadcast through bs %d/%s\n", it->first, it->second);
           tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
           tun_.Write(Tun::kControl, buf, len, &bs_addr);
-          int duration = len * 8.0 / bs_stats_tbl_.GetThroughput(client_id, it->first);
-          if(min_duration == -1 || duration < min_duration)
-            min_duration = duration;
         }
-        usleep(min_duration);
       }
-
+      usleep(duration);
     }
   }
   delete[] buf;
