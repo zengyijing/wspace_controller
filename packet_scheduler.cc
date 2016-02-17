@@ -126,10 +126,14 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id)
   // @yijing: handle the case client_id is not in stats.
   while(true) {
     *client_id = active_list_.Remove();
-    if (stats_.count(*client_id)) break;
+    Lock();
+    if (stats_.count(*client_id)) {
+      break;
+    } else {
+      UnLock();
+    }
   }
   pkts->clear();
-  Lock();
   stats_[*client_id].counter += stats_[*client_id].quantum;
   char *pkt = NULL;
   uint16_t len = 0;
@@ -165,7 +169,9 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   }
   for (auto it = queues_.begin(); it != queues_.end(); ++it) {
     if (throughputs.count(it->first) == 0) {
-      queues_.erase(it);
+      //queues_.erase(it);
+      //printf("NEED TO HANDLE MEM LEAK!\n");
+      it->second->~PktQueue();
     }
   }  
   switch(fairness_mode()) {
