@@ -415,15 +415,19 @@ void* WspaceController::ComputeRoutes(void* arg) {
     for(auto it = throughputs.begin(); it != throughputs.end(); ++it) {
       int client_id = it->first;
       int bs_id = 0;
-      bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, NULL);
+      BSInfo info;
+      bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
       if (is_route_available) {
         int contention_id = conflict_graph_[bs_id];
         splited_throughputs[contention_id][client_id] = it->second;
       }
     }
+
     for(auto it = packet_scheduler_tbl_.begin(); it != packet_scheduler_tbl_.end(); ++it) {
-      it->second->ComputeQuantum(splited_throughputs[it->first]);
-      it->second->PrintStats();
+      if (splited_throughputs[it->first].size() > 0) {
+        it->second->ComputeQuantum(splited_throughputs[it->first]);
+        it->second->PrintStats();
+      }
     }
     usleep(update_route_interval_);  
   }
@@ -450,7 +454,8 @@ void* WspaceController::ReadTun(void *arg) {
     }
     // @yijing: check contention domain. client-id -> bs_id -> contention id.
     int bs_id = 0;
-    bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, NULL);
+    BSInfo info;
+    bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
     if (is_route_available) {
       int contention_id = conflict_graph_[bs_id];
       packet_scheduler_tbl_[contention_id]->Enqueue(pkt, len, client_id);
