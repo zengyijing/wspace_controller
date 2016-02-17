@@ -64,14 +64,14 @@ void BSStatsTable::GetStats(unordered_map<int, unordered_map<int, double> > *sta
 }
 
 bool BSStatsTable::GetThroughput(int client_id, int bs_id, double* throughput) {
-  bool find_throughput = false;
+  bool throughput_found = false;
   Lock();
-  if (stats_[client_id].count(bs_id) > 0) {
+  if (stats_.count(client_id) && stats_[client_id].count(bs_id) > 0) {
     *throughput = stats_[client_id][bs_id];
-    find_throughput = true;
+    throughput_found = true;
   }
   UnLock();
-  return find_throughput;
+  return throughput_found;
 }
 
 RoutingTable::RoutingTable() {
