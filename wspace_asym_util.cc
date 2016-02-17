@@ -401,11 +401,13 @@ void GPSLogger::LogGPSInfo(const GPSHeader &hdr) {
  * @param [out] end_seq: Highest sequence number of the good packets.
  * @param [out] seq_arr: Array of sequence numbers of lost packets.
 */ 
-void AckPkt::ParseNack(char *type, uint32 *ack_seq, uint16 *num_nacks, uint32 *end_seq, uint32 *seq_arr, uint16 *num_pkts) {
+void AckPkt::ParseNack(char *type, uint32 *ack_seq, uint16 *num_nacks, uint32 *end_seq, int* client_id, int* bs_id, uint32 *seq_arr, uint16 *num_pkts) {
   *type = ack_hdr_.type_;
   *ack_seq = ack_hdr_.ack_seq_;
   *num_nacks = ack_hdr_.num_nacks_;
   *end_seq = ack_hdr_.end_seq_;
+  *client_id = ack_hdr_.client_id_;
+  *bs_id = ack_hdr_.bs_id_;
   if (num_pkts)
     *num_pkts = ack_hdr_.num_pkts_;
   for (int i = 0; i < ack_hdr_.num_nacks_; i++) {
@@ -419,10 +421,8 @@ void AckPkt::ParseNack(char *type, uint32 *ack_seq, uint16 *num_nacks, uint32 *e
 void AckPkt::Print() {
   if (ack_hdr_.type_ == DATA_ACK)
     printf("data_ack");
-  else if (ack_hdr_.type_ == RAW_FRONT_ACK)
-    printf("raw_front_ack");
   else
-    printf("raw_back_ack");
+    printf("raw_ack");
   printf("[%u] end_seq[%u] num_nacks[%u] num_pkts[%u] {", ack_hdr_.ack_seq_, ack_hdr_.end_seq_, ack_hdr_.num_nacks_, ack_hdr_.num_pkts_);
   for (int i = 0; i < ack_hdr_.num_nacks_; i++) {
     printf("%u ", ack_hdr_.start_nack_seq_ + rel_seq_arr_[i]);
@@ -537,19 +537,17 @@ int AckContext::WaitFill(int wait_ms) {
   return err;
 }
 
-void BSStatsPkt::Init(uint32 seq, int bs_id, int client_id, int radio_id, double throughput) {
+void BSStatsPkt::Init(uint32 seq, int bs_id, int client_id, double throughput) {
   type_ = BS_STATS;
   seq_ = seq;
   bs_id_ = bs_id;
   client_id_ = client_id;
-  radio_id_ = radio_id;
   throughput_ = throughput;
 }
 
-void BSStatsPkt::ParsePkt(uint32 *seq, int *bs_id, int *client_id, int *radio_id, double *throughput) const {
+void BSStatsPkt::ParsePkt(uint32 *seq, int *bs_id, int *client_id, double *throughput) const {
   *seq = seq_;
   *bs_id = bs_id_;
   *client_id = client_id_;
-  *radio_id = radio_id_;
   *throughput = throughput_;
 }

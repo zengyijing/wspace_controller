@@ -54,6 +54,7 @@ class Tun {
   void CreateAddr(const char *ip, int port, sockaddr_in *addr);
   uint16_t Read(const IOType &type, char *buf, uint16_t len);
   uint16_t Write(const IOType &type, char *buf, uint16_t len, sockaddr_in *server_addr_eth);
+  bool IsValidClient(int client_id);
 
 // Data members:
   int tun_fd_;
