@@ -16,13 +16,16 @@ int main(int argc, char **argv) {
   Pthread_create(&wspace_controller->p_recv_from_bs_, NULL, LaunchRecvFromBS, NULL);
   Pthread_create(&wspace_controller->p_compute_route_, NULL, LaunchComputeRoutes, NULL);
   Pthread_create(&wspace_controller->p_read_tun_, NULL, LaunchReadTun, NULL);
-  Pthread_create(&wspace_controller->p_forward_to_bs_, NULL, LaunchForwardToBS, NULL);
+  for (auto it = wspace_controller->conflict_graph_.begin(); it != wspace_controller->conflict_graph_.end(); ++it) {
+    Pthread_create(&wspace_controller->p_forward_to_bs_tbl_[it->second], NULL, LaunchForwardToBS, &(it->second));
+  }
 
   Pthread_join(wspace_controller->p_recv_from_bs_, NULL);
   Pthread_join(wspace_controller->p_compute_route_, NULL);
   Pthread_join(wspace_controller->p_read_tun_, NULL);
-  Pthread_join(wspace_controller->p_forward_to_bs_, NULL);
-
+  for (auto it = wspace_controller->conflict_graph_.begin(); it != wspace_controller->conflict_graph_.end(); ++it) {
+    Pthread_join(wspace_controller->p_forward_to_bs_tbl_[it->second], NULL);
+  }
   delete wspace_controller;
   return 0;
 }
@@ -321,12 +324,17 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
   if (use_optimizer_) {
     routing_tbl_.PrintConflictGraph(f_conflict_);
   }
-  packet_scheduler_ = new PktScheduler(MIN_THROUGHPUT, client_ids_, PKT_QUEUE_SIZE, 
-                                       round_interval_, PktScheduler::FairnessMode(fairness_mode_));
+  for (auto it = conflict_graph_.begin(); it != conflict_graph_.end(); ++it) {
+    if(packet_scheduler_tbl_.count(it->second) == 0)
+      packet_scheduler_tbl_[it->second] = new PktScheduler(MIN_THROUGHPUT, client_ids_, PKT_QUEUE_SIZE, 
+                                            round_interval_, PktScheduler::FairnessMode(fairness_mode_));
+  }
 }
 
 WspaceController::~WspaceController() {
-  delete packet_scheduler_;
+  for (auto it = packet_scheduler_tbl_.begin(); it != packet_scheduler_tbl_.end(); ++it) {
+    delete it->second;
+  }
 }
 
 void WspaceController::ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table) {
@@ -403,8 +411,20 @@ void* WspaceController::ComputeRoutes(void* arg) {
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, use_optimizer_);
     // @yijing: split throughputs among contention domains. Then let each 
     // packet scheduler to compute quantum.
-    packet_scheduler_->ComputeQuantum(throughputs);
-    packet_scheduler_->PrintStats();
+    unordered_map<int, unordered_map<int, double> > splited_throughputs; // <contention id, <client_id, throughput> >.
+    for(auto it = throughputs.begin(); it != throughputs.end(); ++it) {
+      int client_id = it->first;
+      int bs_id = 0;
+      bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, NULL);
+      if (is_route_available) {
+        int contention_id = conflict_graph_[bs_id];
+        splited_throughputs[contention_id][client_id] = it->second;
+      }
+    }
+    for(auto it = packet_scheduler_tbl_.begin(); it != packet_scheduler_tbl_.end(); ++it) {
+      it->second->ComputeQuantum(splited_throughputs[it->first]);
+      it->second->PrintStats();
+    }
     usleep(update_route_interval_);  
   }
   return (void*)NULL;
@@ -429,12 +449,19 @@ void* WspaceController::ReadTun(void *arg) {
       continue;
     }
     // @yijing: check contention domain. client-id -> bs_id -> contention id.
-    packet_scheduler_->Enqueue(pkt, len, client_id);
+    int bs_id = 0;
+    bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, NULL);
+    if (is_route_available) {
+      int contention_id = conflict_graph_[bs_id];
+      packet_scheduler_tbl_[contention_id]->Enqueue(pkt, len, client_id);
+    }
   }
   delete[] pkt;
 }
 
 void* WspaceController::ForwardToBS(void* arg) {
+  int *contention_id = (int*) arg;
+  printf("contention_id %d start forwarding to BS.\n", *contention_id);
   int client_id = 0;
   char *buf = new char[PKT_SIZE];
   struct sockaddr_in bs_addr;
@@ -442,7 +469,7 @@ void* WspaceController::ForwardToBS(void* arg) {
   vector<pair<char*, uint16_t> > pkts;
   ((ControllerToClientHeader*)buf)->set_type(CONTROLLER_TO_CLIENT);
   while (1) {
-    packet_scheduler_->Dequeue(&pkts, &client_id);
+    packet_scheduler_tbl_[*contention_id]->Dequeue(&pkts, &client_id);
     if(!tun_.IsValidClient(client_id)) {
       Perror("WspaceController::ForwardToBS: Invalid client[%d]!\n", client_id);
     }

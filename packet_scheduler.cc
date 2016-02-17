@@ -159,8 +159,8 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   for (const auto &p : throughputs) {
     client_ids_.push_back(p.first);
     stats_[p.first].throughput = max(kMinThroughput, p.second);
-    if (queues_.count(client_id) == 0) {
-      queues_[client_id] = new PktQueue(pkt_queue_size_);
+    if (queues_.count(p.first) == 0) {
+      queues_[p.first] = new PktQueue(pkt_queue_size_);
     }
   }
   for (auto it = queues_.begin(); it != queues_.end(); ++it) {

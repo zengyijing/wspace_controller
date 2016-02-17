@@ -115,7 +115,7 @@ class WspaceController {
   BSStatsTable bs_stats_tbl_;
   RoutingTable routing_tbl_;  
   Tun tun_;
-  PktScheduler *packet_scheduler_;  // @yijing: unordered_map<int, PktScheduler> packet_scheduler_tbl_. int for contention domain id.
+  unordered_map<int, PktScheduler*> packet_scheduler_tbl_;  // @yijing: unordered_map<int, PktScheduler> packet_scheduler_tbl_. int for contention domain id.
   FairnessMode fairness_mode_;
   uint32 round_interval_;        // in microseconds to schedule cilents in a round.
   uint32 update_route_interval_; // in microseconds.
