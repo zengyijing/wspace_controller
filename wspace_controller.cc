@@ -123,9 +123,22 @@ void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl,
                                 unordered_map<int, double> &throughputs,
                                 bool use_optimizer) {
   if (use_optimizer) {
-    UpdateRoutesOptimizer(bs_stats_tbl, throughputs);
-  } else {
-    UpdateRoutesMaxThroughput(bs_stats_tbl, throughputs);
+  switch (scheduling_mode_) {
+    case kMaxThroughput:
+ 
+    case kDuplication:
+      UpdateRoutesMaxThroughput(bs_stats_tbl, throughputs);
+      break;
+
+    case kOptimizer
+      UpdateRoutesOptimizer(bs_stats_tbl, throughputs);
+      break;
+    
+    case kRoundRobin:
+      break;
+    
+    default:
+      assert(false);
   }
 }
 
@@ -173,6 +186,11 @@ void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl,
     }
   }
   UnLock();
+}
+
+void RoutingTable::UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
+                                          unordered_map<int, double> &throughputs) {
+  static int bs_index = 0;
 }
 
 bool RoutingTable::FindMaxThroughputBS(int client_id, int *bs_id, double *throughput) {
@@ -300,7 +318,8 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
         break;
       }
       case 'o': {
-        use_optimizer_ = bool(atoi(optarg));
+        //@yijing1: Change parsing for scheduling mode.
+        scheduling_mode_ = atoi(optarg);
         break;
       }
       default: {
@@ -489,7 +508,8 @@ void* WspaceController::ForwardToBS(void* arg) {
       bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
       int duration = len * 8;
       double throughput = 0;
-      if (is_route_available) {
+      // @yijing1: use else for duplication.
+      if (is_route_available && scheduling_mode_ != kDuplication) {
         tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
         //printf("convert address to %s\n", info.ip_eth);
         tun_.Write(Tun::kControl, buf, len, &bs_addr);
@@ -501,6 +521,7 @@ void* WspaceController::ForwardToBS(void* arg) {
           printf("broadcast through bs %d/%s\n", it->first, it->second);
           tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
           tun_.Write(Tun::kControl, buf, len, &bs_addr);
+          // @yijing1: Re-compute duration for kDuplication.
         }
       }
       usleep(duration);

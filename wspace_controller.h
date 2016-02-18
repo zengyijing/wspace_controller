@@ -73,6 +73,9 @@ class RoutingTable {
   // With lock.
   void UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
                              unordered_map<int, double> &throughputs);
+  // With lock.
+  void UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
+                              unordered_map<int, double> &throughputs);
 
   bool FindMaxThroughputBS(int client_id, int *bs_id, double *throughput);
   void PrintStats(const string &filename);
@@ -95,6 +98,14 @@ class RoutingTable {
 
 class WspaceController {
  public:
+  // @yijing1
+  enum SchedulingMode {
+    kMaxThroughput = 0,
+    kOptimizer = 1,
+    kDuplication = 2,
+    kRoundRobin = 3,
+  };
+
   WspaceController(int argc, char *argv[], const char *optstring);
   ~WspaceController();
   
@@ -124,7 +135,9 @@ class WspaceController {
   vector<int> client_ids_;
   unordered_map<int, int> conflict_graph_;
   string f_stats_, f_conflict_, f_route_, f_executable_;
+  // @yijing1: Remove it.
   bool use_optimizer_;
+  SchedulingMode scheduling_mode_;
 };
 
 /** Wrapper function for pthread_create. */
