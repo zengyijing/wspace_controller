@@ -109,13 +109,12 @@ class WspaceController {
 
 // Data member
   pthread_t p_recv_from_bs_, p_compute_route_, p_read_tun_;
-  // @yijing: per contention domain forwarding thread.
   unordered_map<int, pthread_t> p_forward_to_bs_tbl_;
 
   BSStatsTable bs_stats_tbl_;
   RoutingTable routing_tbl_;  
   Tun tun_;
-  unordered_map<int, PktScheduler*> packet_scheduler_tbl_;  // @yijing: unordered_map<int, PktScheduler> packet_scheduler_tbl_. int for contention domain id.
+  unordered_map<int, PktScheduler*> packet_scheduler_tbl_;
   FairnessMode fairness_mode_;
   uint32 round_interval_;        // in microseconds to schedule cilents in a round.
   uint32 update_route_interval_; // in microseconds.
