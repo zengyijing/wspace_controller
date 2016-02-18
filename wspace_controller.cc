@@ -422,9 +422,9 @@ void* WspaceController::ComputeRoutes(void* arg) {
         splited_throughputs[contention_id][client_id] = it->second;
       }
     }
-
     for(auto it = packet_scheduler_tbl_.begin(); it != packet_scheduler_tbl_.end(); ++it) {
       if (splited_throughputs[it->first].size() > 0) {
+        printf("contention id: %d\n", it->first);
         it->second->ComputeQuantum(splited_throughputs[it->first]);
         it->second->PrintStats();
       }
