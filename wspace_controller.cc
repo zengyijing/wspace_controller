@@ -428,8 +428,6 @@ void* WspaceController::ComputeRoutes(void* arg) {
   unordered_map<int, double> throughputs; 
   while(1) {
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, use_optimizer_);
-    // @yijing: split throughputs among contention domains. Then let each 
-    // packet scheduler to compute quantum.
     unordered_map<int, unordered_map<int, double> > splited_throughputs; // <contention id, <client_id, throughput> >.
     for(auto it = throughputs.begin(); it != throughputs.end(); ++it) {
       int client_id = it->first;
@@ -471,7 +469,6 @@ void* WspaceController::ReadTun(void *arg) {
       printf("Traffic to an unknown client:%d, continue.\n", client_id);
       continue;
     }
-    // @yijing: check contention domain. client-id -> bs_id -> contention id.
     int bs_id = 0;
     BSInfo info;
     bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);

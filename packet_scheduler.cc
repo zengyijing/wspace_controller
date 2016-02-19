@@ -123,7 +123,6 @@ void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id) {
 }
 
 void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id) {
-  // @yijing: handle the case client_id is not in stats.
   while(true) {
     *client_id = active_list_.Remove();
     Lock();
@@ -157,7 +156,6 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id)
 
 void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs) {
   Lock();
-  // @yijing: Clear stats and client_ids and re-populate it.
   stats_.clear();
   client_ids_.clear();
   for (const auto &p : throughputs) {
@@ -170,7 +168,7 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   vector<int> remove_queue;
   for (auto it = queues_.begin(); it != queues_.end(); ++it) {
     if (throughputs.count(it->first) == 0) {
-      it->second->~PktQueue();
+      delete it->second;
       remove_queue.push_back(it->first);
     }
   }
