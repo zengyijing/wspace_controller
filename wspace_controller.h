@@ -108,12 +108,13 @@ class WspaceController {
   int ExtractClientID(const char *pkt);
 
 // Data member
-  pthread_t p_recv_from_bs_, p_compute_route_, p_read_tun_, p_forward_to_bs_;
+  pthread_t p_recv_from_bs_, p_compute_route_, p_read_tun_;
+  unordered_map<int, pthread_t> p_forward_to_bs_tbl_;
 
   BSStatsTable bs_stats_tbl_;
   RoutingTable routing_tbl_;  
   Tun tun_;
-  PktScheduler *packet_scheduler_;
+  unordered_map<int, PktScheduler*> packet_scheduler_tbl_;
   FairnessMode fairness_mode_;
   uint32 round_interval_;        // in microseconds to schedule cilents in a round.
   uint32 update_route_interval_; // in microseconds.

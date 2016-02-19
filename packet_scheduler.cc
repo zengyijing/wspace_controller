@@ -98,7 +98,8 @@ PktScheduler::PktScheduler(double min_throughput,
                            uint32_t round_interval, 
                            const FairnessMode &fairness_mode) 
     : kMinThroughput(min_throughput), client_ids_(client_ids), 
-      round_interval_(round_interval), fairness_mode_(fairness_mode) {
+      pkt_queue_size_(pkt_queue_size), round_interval_(round_interval), 
+      fairness_mode_(fairness_mode) {
   for (auto client_id : client_ids_) {
     queues_[client_id] = new PktQueue(pkt_queue_size);
     stats_[client_id].quantum = double(round_interval_)/client_ids_.size(); 
@@ -122,9 +123,16 @@ void PktScheduler::Enqueue(const char *pkt, uint16_t len, int client_id) {
 }
 
 void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id) {
-  *client_id = active_list_.Remove();
+  while(true) {
+    *client_id = active_list_.Remove();
+    Lock();
+    if (stats_.count(*client_id)) {
+      break;
+    } else {
+      UnLock();
+    }
+  }
   pkts->clear();
-  Lock();
   stats_[*client_id].counter += stats_[*client_id].quantum;
   char *pkt = NULL;
   uint16_t len = 0;
@@ -148,9 +156,25 @@ void PktScheduler::Dequeue(vector<pair<char*, uint16_t> > *pkts, int *client_id)
 
 void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs) {
   Lock();
+  stats_.clear();
+  client_ids_.clear();
   for (const auto &p : throughputs) {
+    client_ids_.push_back(p.first);
     stats_[p.first].throughput = max(kMinThroughput, p.second);
+    if (queues_.count(p.first) == 0) {
+      queues_[p.first] = new PktQueue(pkt_queue_size_);
+    }
   }
+  vector<int> remove_queue;
+  for (auto it = queues_.begin(); it != queues_.end(); ++it) {
+    if (throughputs.count(it->first) == 0) {
+      delete it->second;
+      remove_queue.push_back(it->first);
+    }
+  }
+  for (auto it = remove_queue.begin(); it != remove_queue.end(); ++it) {
+    queues_.erase(*it);
+  } 
   switch(fairness_mode()) {
     case kEqualTime:
       ComputeQuantumEqualTime();
@@ -208,7 +232,8 @@ unordered_map<int, PktScheduler::Status> PktScheduler::stats() {
 
 void PktScheduler::PrintStats() {
   Lock();
-  printf("===PktScheduler: client: throughput quantum counter===\n");
+  if (client_ids_.size() > 0)
+    printf("===PktScheduler: client: throughput quantum counter===\n");
   for (auto client_id: client_ids_) {
     printf("%d: %3f %3f %3f\n", client_id, stats_[client_id].throughput, 
                            stats_[client_id].quantum, stats_[client_id].counter);
