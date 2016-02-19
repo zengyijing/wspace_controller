@@ -130,6 +130,6 @@ class WspaceController {
 void* LaunchRecvFromBS(void* arg);
 void* LaunchComputeRoutes(void* arg);
 void* LaunchReadTun(void* arg);
-void* LaunchForwardToBS(void* arg);  // @yijing: one thread per contention domain.
+void* LaunchForwardToBS(void* arg);
 
 #endif
