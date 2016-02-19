@@ -69,8 +69,8 @@ class PktScheduler {
  public:
   enum FairnessMode {
     kEqualTime = 0,
-    kProportionalThroughput = 1,
-    kEqualThroughput = 2,
+    kEqualThroughput = 1,
+    kProportionalThroughput = 2,
   };
 
   struct Status {

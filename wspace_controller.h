@@ -45,6 +45,7 @@ struct BSInfo {
 enum FairnessMode {
   kEqualTime = 0,
   kEqualThroughput = 1,
+  kProportionalThroughput = 2,
 };
 
 enum SchedulingMode {

@@ -262,7 +262,7 @@ bool RoutingTable::FindRoute(int dest_id, int* bs_id, BSInfo *info) {
 }
 
 WspaceController::WspaceController(int argc, char *argv[], const char *optstring): 
-  update_route_interval_(100000), round_interval_(10), 
+  update_route_interval_(100000), round_interval_(10), fairness_mode_(kEqualTime),
   scheduling_mode_(kMaxThroughput), f_stats_("stats.dat"), f_conflict_("conflict.dat"), 
   f_route_("route.dat"), f_executable_("executable.dat") {
   int option;
