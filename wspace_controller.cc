@@ -191,8 +191,7 @@ void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl,
 void RoutingTable::UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
                                           unordered_map<int, double> &throughputs) {
   static uint32 bs_index = 0;
-  int bs_id = bs_ids_.at(bs_index % bs_ids_.size());
-  ++bs_index;
+  int bs_id = bs_ids_[bs_index++ % bs_ids_.size()];
   Lock();
   bs_stats_tbl.GetStats(&stats_);
   throughputs.clear();
