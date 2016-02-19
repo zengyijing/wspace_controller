@@ -53,6 +53,7 @@ enum SchedulingMode {
   kOptimizer = 1,
   kDuplication = 2,
   kRoundRobin = 3,
+  kExhaustiveSearch = 4,
 };
 
 class RoutingTable {
