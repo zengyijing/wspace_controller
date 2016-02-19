@@ -121,11 +121,24 @@ void RoutingTable::Init(const Tun &tun, const vector<int> &bs_ids,
 
 void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl, 
                                 unordered_map<int, double> &throughputs,
-                                bool use_optimizer) {
-  if (use_optimizer) {
-    UpdateRoutesOptimizer(bs_stats_tbl, throughputs);
-  } else {
-    UpdateRoutesMaxThroughput(bs_stats_tbl, throughputs);
+                                SchedulingMode scheduling_mode) {
+  switch (scheduling_mode) {
+    case kMaxThroughput:
+ 
+    case kDuplication:
+      UpdateRoutesMaxThroughput(bs_stats_tbl, throughputs);
+      break;
+
+    case kOptimizer:
+      UpdateRoutesOptimizer(bs_stats_tbl, throughputs);
+      break;
+    
+    case kRoundRobin:
+      UpdateRoutesRoundRobin(bs_stats_tbl, throughputs);
+      break;
+    
+    default:
+      assert(false);
   }
 }
 
@@ -173,6 +186,21 @@ void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl,
     }
   }
   UnLock();
+}
+
+void RoutingTable::UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
+                                          unordered_map<int, double> &throughputs) {
+  static uint32 bs_index = 0;
+  int bs_id = bs_ids_[bs_index++ % bs_ids_.size()];
+  Lock();
+  bs_stats_tbl.GetStats(&stats_);
+  throughputs.clear();
+  for (auto client_id : client_ids_) {
+    throughputs[client_id] = stats_[client_id][bs_id];
+    route_[client_id] = bs_id;
+  }
+  UnLock();
+  printf("currently route is set to bs %d for all clients\n", bs_id);
 }
 
 bool RoutingTable::FindMaxThroughputBS(int client_id, int *bs_id, double *throughput) {
@@ -235,7 +263,7 @@ bool RoutingTable::FindRoute(int dest_id, int* bs_id, BSInfo *info) {
 
 WspaceController::WspaceController(int argc, char *argv[], const char *optstring): 
   update_route_interval_(100000), round_interval_(10), 
-  use_optimizer_(false), f_stats_("stats.dat"), f_conflict_("conflict.dat"), 
+  scheduling_mode_(kMaxThroughput), f_stats_("stats.dat"), f_conflict_("conflict.dat"), 
   f_route_("route.dat"), f_executable_("executable.dat") {
   int option;
   bool is_same_channel = false;  // Whether base stations are on the same channel.
@@ -300,7 +328,7 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
         break;
       }
       case 'o': {
-        use_optimizer_ = bool(atoi(optarg));
+        scheduling_mode_ = (SchedulingMode) atoi(optarg);
         break;
       }
       default: {
@@ -321,7 +349,7 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
   for (auto bs_id : bs_ids_) {
     conflict_graph_[bs_id] = is_same_channel ? 1 : bs_id;
   }
-  if (use_optimizer_) {
+  if (scheduling_mode_ == kOptimizer) {
     routing_tbl_.PrintConflictGraph(f_conflict_);
   }
   for (auto it = conflict_graph_.begin(); it != conflict_graph_.end(); ++it) {
@@ -408,7 +436,7 @@ void* WspaceController::RecvFromBS(void* arg) {
 void* WspaceController::ComputeRoutes(void* arg) {
   unordered_map<int, double> throughputs; 
   while(1) {
-    routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, use_optimizer_);
+    routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, scheduling_mode_);
     unordered_map<int, unordered_map<int, double> > splited_throughputs; // <contention id, <client_id, throughput> >.
     for(auto it = throughputs.begin(); it != throughputs.end(); ++it) {
       int client_id = it->first;
@@ -486,18 +514,24 @@ void* WspaceController::ForwardToBS(void* arg) {
       bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
       int duration = len * 8;
       double throughput = 0;
-      if (is_route_available) {
+      if (is_route_available && scheduling_mode_ != kDuplication) {
         tun_.CreateAddr(info.ip_eth, info.port, &bs_addr);
         //printf("convert address to %s\n", info.ip_eth);
         tun_.Write(Tun::kControl, buf, len, &bs_addr);
         if (bs_stats_tbl_.GetThroughput(client_id, bs_id, &throughput))
           duration =  len * 8.0 / throughput;
       } else {
-        printf("No route to the client[%d]\n", client_id);
         for(auto it = tun_.bs_ip_tbl_.begin(); it != tun_.bs_ip_tbl_.end(); ++it) {
-          printf("broadcast through bs %d/%s\n", it->first, it->second);
+          //printf("broadcast through bs %d/%s\n", it->first, it->second);
           tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
           tun_.Write(Tun::kControl, buf, len, &bs_addr);
+          if (scheduling_mode_ == kDuplication) {
+            if (bs_stats_tbl_.GetThroughput(client_id, it->first, &throughput)) {   
+              int dur = len * 8.0 / throughput;
+              if (duration > dur)
+                duration = dur;
+            }
+          }
         }
       }
       usleep(duration);
