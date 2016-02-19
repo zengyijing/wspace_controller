@@ -47,6 +47,13 @@ enum FairnessMode {
   kEqualThroughput = 1,
 };
 
+enum SchedulingMode {
+  kMaxThroughput = 0,
+  kOptimizer = 1,
+  kDuplication = 2,
+  kRoundRobin = 3,
+};
+
 class RoutingTable {
  public:
   RoutingTable();
@@ -62,7 +69,7 @@ class RoutingTable {
   // throughputs - throughput of the selected bs for each client.
   void UpdateRoutes(BSStatsTable &bs_stats_tbl, 
                     unordered_map<int, double> &throughputs, 
-                    bool use_optimizer = false);
+                    SchedulingMode scheduling_mode);
   bool FindRoute(int dest_id, int* bs_id, BSInfo *info);
   void PrintConflictGraph(const string &filename);
 
@@ -98,13 +105,6 @@ class RoutingTable {
 
 class WspaceController {
  public:
-  // @yijing1
-  enum SchedulingMode {
-    kMaxThroughput = 0,
-    kOptimizer = 1,
-    kDuplication = 2,
-    kRoundRobin = 3,
-  };
 
   WspaceController(int argc, char *argv[], const char *optstring);
   ~WspaceController();
@@ -134,8 +134,6 @@ class WspaceController {
   vector<int> client_ids_;
   unordered_map<int, int> conflict_graph_;
   string f_stats_, f_conflict_, f_route_, f_executable_;
-  // @yijing1: Remove it.
-  bool use_optimizer_;
   SchedulingMode scheduling_mode_;
 };
 
