@@ -69,7 +69,7 @@ void BSStatsTable::GetStats(unordered_map<int, unordered_map<int, double> > *sta
 bool BSStatsTable::GetThroughput(int client_id, int bs_id, double* throughput) {
   bool throughput_found = false;
   Lock();
-  if (stats_.count(client_id) && stats_[client_id].count(bs_id) > 0) {
+  if (stats_.count(client_id) && stats_[client_id].count(bs_id) > 0 && stats_[client_id][bs_id] > MIN_THROUGHPUT) {
     *throughput = stats_[client_id][bs_id];
     throughput_found = true;
   }
