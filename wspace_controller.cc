@@ -156,7 +156,9 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
     }
   }
   PrintStats(f_stats_);
-  string cmd = f_executable_ + " " + to_string(int(fairness_mode_)) + " " + f_conflict_ + " " + f_stats_;
+  string cmd = "Rscript " + " " + f_executable_ + " " + to_string(int(fairness_mode_)) +
+               " " + to_string(int(scheduling_mode_)) + " " + f_conflict_ + " " + f_stats_ +
+               " " + f_route_;
   printf("Execute cmd: %s\n", cmd.c_str());
   system(cmd.c_str());
   ParseRoutingTable(f_route_);
@@ -264,7 +266,7 @@ bool RoutingTable::FindRoute(int dest_id, int* bs_id, BSInfo *info) {
 WspaceController::WspaceController(int argc, char *argv[], const char *optstring): 
   update_route_interval_(100000), round_interval_(10), fairness_mode_(kEqualTime),
   scheduling_mode_(kMaxThroughput), f_stats_("stats.dat"), f_conflict_("conflict.dat"), 
-  f_route_("route.dat"), f_executable_("executable.dat") {
+  f_route_("route.dat"), f_executable_("get_assignment.R") {
   int option;
   bool is_same_channel = false;  // Whether base stations are on the same channel.
   while ((option = getopt(argc, argv, optstring)) > 0) {
