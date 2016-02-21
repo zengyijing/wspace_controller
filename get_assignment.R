@@ -59,13 +59,43 @@ optf.gen <- function(mm, param){
   -sum(unlist(cc)) #+ lam*pen
 }
 
-optf.inv <- function(mm, param){
-  ######## TBD
-	aa <- sapply(1:nc,function(i)p2[which(p2[,i]!=0),i] ,simplify=F)
-  bb <- sapply(aa, function(i) i * (1/sum(i)),simplify=F)
-  cc <- sapply(1:nc, function(i)mm[which(p2[,i]!=0),i] * bb[[i]])
+# proportional
+optf.pro <- function(mm, param){
+  nc <- ncol(mm)
+  p1 <- matrix(param,ncol=nc-1)
+	rs <- rowSums(p1)
+	rs[which(rs==0)] <- 1
+	p1.0 <- p1/rs
+  p2.0 <- cbind(p1.0, 1-rowSums(p1.0))
+	p2 <- p2.0
+  #aa <- sapply(1:nc,function(i)p2[which(p2[,i]!=0),i] ,simplify=F)
+	a2 <- sapply(1:nc,function(i)mm[which(p2[,i]!=0),i] ,simplify=F)
+  bb <- sapply(a2, function(i) i * (1/sum(i)),simplify=F)
+  cc <- sapply(1:nc, function(i)a2[[i]] * bb[[i]])
   -sum(unlist(cc)) #+ lam*pen
 }
+
+
+optf.inv <- function(mm, param){
+  nc <- ncol(mm)
+  p1 <- matrix(param,ncol=nc-1)
+	rs <- rowSums(p1)
+	rs[which(rs==0)] <- 1
+	p1.0 <- p1/rs
+  p2.0 <- cbind(p1.0, 1-rowSums(p1.0))
+	p2 <- p2.0
+  #aa <- sapply(1:nc,function(i)p2[which(p2[,i]!=0),i] ,simplify=F)
+	a2 <- sapply(1:nc,function(i)mm[which(p2[,i]!=0),i] ,simplify=F)
+	a3 <- sapply(a2, function(i){
+		tmp <- 1/i
+		tmp[which(tmp==Inf)] <- 0
+		tmp
+		})
+  bb <- sapply(a3, function(i) i * (1/sum(i)),simplify=F)
+  cc <- sapply(1:nc, function(i)a2[[i]] * bb[[i]])
+  -sum(unlist(cc)) #+ lam*pen
+}
+
 
 
 # convert function
@@ -102,7 +132,7 @@ data.in[which(data.in<0)] <- 0 # -1 may represent missing data
 station.channel.in <- data.matrix(read.table(station.channel.file))
 n.bs <- ncol(data.in)
 n.car <- nrow(data.in)
-colnames(data.in) <- paste("bs",2:(n.bs+1),sep="")
+colnames(data.in) <- paste("bs",station.channel.in[,1],sep="")
 rownames(data.in) <- paste("client",1:n.car,sep="")
 station.channel <- paste("channel",station.channel.in[,2],sep="")
 names(station.channel) <- paste("bs", station.channel.in[,1],sep="")
@@ -159,7 +189,9 @@ max.cn.idx <- apply(mat.channel,1,function(i)which.max(i)[1])
 max.cn.name <- colnames(mat.channel)[max.cn.idx]
 max.out <- cn.to.bs(max.cn.name,n.car, channel.lev, cn.multi, 
 										station.channel, assign.multi)
-tp.res.max <- abs(optf.gen(mat.channel, v.to.matv(max.cn.idx, n.car, n.channel)))
+if(fairness.param==0)tp.res.max <- abs(optf.gen(mat.channel, v.to.matv(max.cn.idx, n.car, n.channel)))
+if(fairness.param==1)tp.res.max <- abs(optf.inv(mat.channel, v.to.matv(max.cn.idx, n.car, n.channel)))
+if(fairness.param==2)tp.res.max <- abs(optf.pro(mat.channel, v.to.matv(max.cn.idx, n.car, n.channel)))	
 message("overall throughput ", tp.res.max)
 out.v <- max.out
 }
@@ -194,11 +226,39 @@ out.v <- even.out
 }
 
 if(fairness.param==1){
-message("not available now")
+max.cn.idx <- apply(mat.channel,1,function(i)which.max(i)[1])
+max.cn.in.v <- v.to.matv(max.cn.idx, n.car, n.channel)
+# use max as start point?
+res.inv <- optim(par=max.cn.in.v, 
+	optf.inv, mm=mat.channel, lower=0, upper=1,
+	control=list(maxit = 20000, temp = 20, parscale=rep(10^6,length(max.cn.in.v))),
+									method="L-BFGS-B")
+v.res.inv <- res.inv$par
+inv.cn.idx <- matv.to.v(res.inv$par, n.car, n.channel)
+# convert channel names back to bs names
+inv.cn.name <- colnames(mat.channel)[inv.cn.idx]
+inv.out <- cn.to.bs(inv.cn.name,n.car, channel.lev, cn.multi, station.channel, assign.multi)
+tp.res.inv <- abs(optf.inv(mat.channel, v.to.matv(inv.cn.idx, n.car, n.channel))) # inv time within channel so use channel matrix
+message("overall throughput ", tp.res.inv)
+out.v <- inv.out
 }
 
 if(fairness.param==2){
-message("not available now")
+max.cn.idx <- apply(mat.channel,1,function(i)which.max(i)[1])
+max.cn.in.v <- v.to.matv(max.cn.idx, n.car, n.channel)
+# use max as start point?
+res.pro <- optim(par=max.cn.in.v, 
+	optf.pro, mm=mat.channel, lower=0, upper=1,
+	control=list(maxit = 20000, temp = 20, parscale=rep(10^6,length(max.cn.in.v))),
+									method="L-BFGS-B")
+v.res.pro <- res.pro$par
+pro.cn.idx <- matv.to.v(res.pro$par, n.car, n.channel)
+# convert channel names back to bs names
+pro.cn.name <- colnames(mat.channel)[pro.cn.idx]
+pro.out <- cn.to.bs(pro.cn.name,n.car, channel.lev, cn.multi, station.channel, assign.multi)
+tp.res.pro <- abs(optf.pro(mat.channel, v.to.matv(pro.cn.idx, n.car, n.channel))) # pro time within channel so use channel matrix
+message("overall throughput ", tp.res.pro)
+out.v <- pro.out
 }
 
 
@@ -228,11 +288,28 @@ message("overall throughput ", tp.res.expand)
 out.v <- expand.out
 }
 if(fairness.param==1){
-message("not available now")
+all.expand.res <- apply(expand.tab, 1, function(i)abs(optf.inv(mat.channel, v.to.matv(i, n.car, n.channel))))
+which.max.expand <- which.max(all.expand.res)
+expand.cn.idx <- as.numeric(expand.tab[which.max.expand,])
+expand.cn.name <- colnames(mat.channel)[expand.cn.idx]
+expand.out <- cn.to.bs(expand.cn.name,n.car, channel.lev, cn.multi,
+										                    station.channel, assign.multi)
+tp.res.expand <- abs(optf.inv(mat.channel, v.to.matv(expand.cn.idx, n.car, n.channel)))
+message("overall throughput ", tp.res.expand)
+out.v <- expand.out
 }
 
+
 if(fairness.param==2){
-message("not available now")
+all.expand.res <- apply(expand.tab, 1, function(i)abs(optf.pro(mat.channel, v.to.matv(i, n.car, n.channel))))
+which.max.expand <- which.max(all.expand.res)
+expand.cn.idx <- as.numeric(expand.tab[which.max.expand,])
+expand.cn.name <- colnames(mat.channel)[expand.cn.idx]
+expand.out <- cn.to.bs(expand.cn.name,n.car, channel.lev, cn.multi,
+										                    station.channel, assign.multi)
+tp.res.expand <- abs(optf.pro(mat.channel, v.to.matv(expand.cn.idx, n.car, n.channel)))
+message("overall throughput ", tp.res.expand)
+out.v <- expand.out
 }
 
 
