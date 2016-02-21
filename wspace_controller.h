@@ -81,7 +81,8 @@ class RoutingTable {
                                  unordered_map<int, double> &throughputs);
   // With lock.
   void UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
-                             unordered_map<int, double> &throughputs);
+                             unordered_map<int, double> &throughputs,
+                             SchedulingMode scheduling_mode);
   // With lock.
   void UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
                               unordered_map<int, double> &throughputs);

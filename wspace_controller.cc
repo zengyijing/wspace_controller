@@ -130,7 +130,7 @@ void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl,
       break;
 
     case kOptimizer:
-      UpdateRoutesOptimizer(bs_stats_tbl, throughputs);
+      UpdateRoutesOptimizer(bs_stats_tbl, throughputs, scheduling_mode);
       break;
     
     case kRoundRobin:
@@ -143,7 +143,8 @@ void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl,
 }
 
 void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl, 
-                                         unordered_map<int, double> &throughputs) {
+                                         unordered_map<int, double> &throughputs,
+                                         SchedulingMode scheduling_mode) {
   Lock();
   bs_stats_tbl.GetStats(&stats_);
   // Fill invalid entries.
@@ -156,8 +157,8 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
     }
   }
   PrintStats(f_stats_);
-  string cmd = "Rscript " + " " + f_executable_ + " " + to_string(int(fairness_mode_)) +
-               " " + to_string(int(scheduling_mode_)) + " " + f_conflict_ + " " + f_stats_ +
+  string cmd = "Rscript " + f_executable_ + " " + to_string(int(fairness_mode_)) +
+               " " + to_string(int(scheduling_mode)) + " " + f_conflict_ + " " + f_stats_ +
                " " + f_route_;
   printf("Execute cmd: %s\n", cmd.c_str());
   system(cmd.c_str());
@@ -235,7 +236,7 @@ void RoutingTable::PrintStats(const string &filename) {
 void RoutingTable::PrintConflictGraph(const string &filename) {
   ofstream ofs(filename.c_str());
   for (auto bs_id : bs_ids_) { 
-    ofs << bs_id << "," << conflict_graph_[bs_id] << endl;
+    ofs << bs_id << " " << conflict_graph_[bs_id] << endl;
   }
   ofs.flush();
   ofs.close();
@@ -351,9 +352,6 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
   for (auto bs_id : bs_ids_) {
     conflict_graph_[bs_id] = is_same_channel ? 1 : bs_id;
   }
-  if (scheduling_mode_ == kOptimizer) {
-    routing_tbl_.PrintConflictGraph(f_conflict_);
-  }
   for (auto it = conflict_graph_.begin(); it != conflict_graph_.end(); ++it) {
     if(packet_scheduler_tbl_.count(it->second) == 0)
       packet_scheduler_tbl_[it->second] = new PktScheduler(MIN_THROUGHPUT, client_ids_, PKT_QUEUE_SIZE, 
@@ -386,6 +384,9 @@ void WspaceController::Init() {
   tun_.InitSock();
   routing_tbl_.Init(tun_, bs_ids_, client_ids_, fairness_mode_, conflict_graph_,
                     f_stats_, f_conflict_, f_route_, f_executable_);
+  if (scheduling_mode_ == kOptimizer) {
+    routing_tbl_.PrintConflictGraph(f_conflict_);
+  }
 }
 
 void* WspaceController::RecvFromBS(void* arg) {

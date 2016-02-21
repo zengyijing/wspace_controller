@@ -1,6 +1,6 @@
 #set.seed(5000)
 
-#./Rscript fun.R fairness_mode scheduling_mode f_conflict_graph_in f_throughput_in f_routes_out
+#./Rscript fun.R scheduling_mode fairness_mode f_conflict_graph_in f_throughput_in f_routes_out
 
 #fairness_mode is a number:
 #0 -> Equal time 
@@ -102,7 +102,7 @@ data.in[which(data.in<0)] <- 0 # -1 may represent missing data
 station.channel.in <- data.matrix(read.table(station.channel.file))
 n.bs <- ncol(data.in)
 n.car <- nrow(data.in)
-colnames(data.in) <- paste("bs",1:n.bs,sep="")
+colnames(data.in) <- paste("bs",2:(n.bs+1),sep="")
 rownames(data.in) <- paste("client",1:n.car,sep="")
 station.channel <- paste("channel",station.channel.in[,2],sep="")
 names(station.channel) <- paste("bs", station.channel.in[,1],sep="")
