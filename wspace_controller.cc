@@ -145,24 +145,17 @@ void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl,
 void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl, 
                                          unordered_map<int, double> &throughputs,
                                          SchedulingMode scheduling_mode) {
-  unordered_map<int, unordered_map<int, double> > stats_copy;
-  Lock();
   bs_stats_tbl.GetStats(&stats_);
   // Fill invalid entries.
   for (auto client_id : client_ids_) {
     stats_[client_id];
-    stats_copy[client_id];
     for (auto bs_id : bs_ids_) {
       if (stats_[client_id].count(bs_id) == 0) {
         stats_[client_id][bs_id] = -1.0;
-        stats_copy[client_id][bs_id] = -1.0;
-      } else {
-        stats_copy[client_id][bs_id] = stats_[client_id][bs_id];
       }
     }
   }
   PrintStats(f_stats_);
-  UnLock();
   string cmd = "Rscript " + f_executable_ + " " + to_string(int(fairness_mode_)) +
                " " + to_string(int(scheduling_mode)) + " " + f_conflict_ + " " + f_stats_ +
                " " + f_route_;
@@ -170,17 +163,19 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
   system(cmd.c_str());
   ParseRoutingTable(f_route_);
   throughputs.clear();
+  Lock();
   for (auto client_id : client_ids_) {
     int bs_id = route_[client_id];
-    throughputs[client_id] = stats_copy[client_id][bs_id];
+    throughputs[client_id] = stats_[client_id][bs_id];
   }
+  UnLock();
 }
 
 void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl, 
                                              unordered_map<int, double> &throughputs) {
-  Lock();
   bs_stats_tbl.GetStats(&stats_);
   throughputs.clear();
+  Lock();
   for (auto client_id : client_ids_) {
     int bs_id = 0;
     double max_throughput = -1.0;
@@ -200,9 +195,9 @@ void RoutingTable::UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
                                           unordered_map<int, double> &throughputs) {
   static uint32 bs_index = 0;
   int bs_id = bs_ids_[bs_index++ % bs_ids_.size()];
-  Lock();
   bs_stats_tbl.GetStats(&stats_);
   throughputs.clear();
+  Lock();
   for (auto client_id : client_ids_) {
     throughputs[client_id] = stats_[client_id][bs_id];
     route_[client_id] = bs_id;
