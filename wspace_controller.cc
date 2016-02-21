@@ -9,7 +9,7 @@ using namespace std;
 WspaceController *wspace_controller;
 
 int main(int argc, char **argv) {
-  const char* opts = "C:i:S:s:t:b:c:r:d:m:f:o:";
+  const char* opts = "C:i:S:s:t:b:c:r:d:m:f:o:F:";
   wspace_controller = new WspaceController(argc, argv, opts);
   wspace_controller->Init();
 
@@ -332,6 +332,10 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
       }
       case 'o': {
         scheduling_mode_ = (SchedulingMode) atoi(optarg);
+        break;
+      }
+      case 'F': {
+        f_executable_ = string(optarg);
         break;
       }
       default: {
