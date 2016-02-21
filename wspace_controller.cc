@@ -164,11 +164,11 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
   throughputs.clear();
   Lock();
   ParseRoutingTable(f_route_);
-  UnLock();
   for (auto client_id : client_ids_) {
     int bs_id = route_[client_id];
     throughputs[client_id] = stats_[client_id][bs_id];
   }
+  UnLock();
 }
 
 void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl, 
