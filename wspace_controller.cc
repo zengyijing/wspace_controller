@@ -161,14 +161,14 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
                " " + f_route_;
   printf("Execute cmd: %s\n", cmd.c_str());
   system(cmd.c_str());
-  ParseRoutingTable(f_route_);
   throughputs.clear();
   Lock();
+  ParseRoutingTable(f_route_);
+  UnLock();
   for (auto client_id : client_ids_) {
     int bs_id = route_[client_id];
     throughputs[client_id] = stats_[client_id][bs_id];
   }
-  UnLock();
 }
 
 void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl, 
