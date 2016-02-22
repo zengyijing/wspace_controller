@@ -180,7 +180,7 @@ void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl,
     int bs_id = 0;
     double max_throughput = -1.0;
     bool is_route_available = FindMaxThroughputBS(client_id, &bs_id, &max_throughput); 
-    if (is_route_available) {
+    if (is_route_available && max_throughput > 0) {
       route_[client_id] = bs_id;
       throughputs[client_id] = max_throughput;
       printf("route to %d is through %d\n", client_id, route_[client_id]);
@@ -247,7 +247,12 @@ void RoutingTable::ParseRoutingTable(const string &filename) {
   string line;
   int i = 0;
   while (getline(ifs, line)) {
-    route_[client_ids_[i++]] = atoi(line.c_str());
+    int bs_id = atoi(line.c_str());
+    // The optimizer finds at least one base station 
+    // with non-zero throughput.
+    if (bs_id > 0) {
+      route_[client_ids_[i++]] = bs_id;
+    }
   }
   ifs.close();
 }
