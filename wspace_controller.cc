@@ -251,8 +251,9 @@ void RoutingTable::ParseRoutingTable(const string &filename) {
     // The optimizer finds at least one base station 
     // with non-zero throughput.
     if (bs_id > 0) {
-      route_[client_ids_[i++]] = bs_id;
+      route_[client_ids_[i]] = bs_id;
     }
+    ++i;
   }
   ifs.close();
 }
