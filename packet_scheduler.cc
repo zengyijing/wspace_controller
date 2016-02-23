@@ -17,6 +17,15 @@ PktQueue::~PktQueue() {
   Pthread_cond_destroy(&empty_cond_);
 }
 
+void PktQueue::Erase() {
+  Lock();
+  while (!q_.empty()) {
+    delete[] q_.front().first;
+    q_.pop();
+  }
+  UnLock();
+}
+
 bool PktQueue::Enqueue(const char *pkt, uint16_t len) {
   if (len <= 0) {
     perror("PktQueue::Enqueue invalid len\n");
@@ -165,16 +174,11 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
       queues_[p.first] = new PktQueue(pkt_queue_size_);
     }
   }
-  vector<int> remove_queue;
   for (auto it = queues_.begin(); it != queues_.end(); ++it) {
     if (throughputs.count(it->first) == 0) {
-      delete it->second;
-      remove_queue.push_back(it->first);
+      it->second->Erase();
     }
   }
-  for (auto it = remove_queue.begin(); it != remove_queue.end(); ++it) {
-    queues_.erase(*it);
-  } 
   switch(fairness_mode()) {
     case kEqualTime:
       ComputeQuantumEqualTime();

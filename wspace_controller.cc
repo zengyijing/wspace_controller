@@ -484,19 +484,27 @@ int WspaceController::ExtractClientID(const char *pkt) {
 
 void* WspaceController::ReadTun(void *arg) {
   char *pkt = new char[PKT_SIZE];
+  ((ControllerToClientHeader*)pkt)->set_type(CONTROLLER_TO_CLIENT);
   while (true) { 
-    uint16 len = tun_.Read(Tun::kTun, pkt, PKT_SIZE);
-    int client_id = ExtractClientID(pkt);
+    uint16 len = tun_.Read(Tun::kTun, pkt + sizeof(ControllerToClientHeader), PKT_SIZE - sizeof(ControllerToClientHeader));
+    len += sizeof(ControllerToClientHeader);
+    int client_id = ExtractClientID(pkt+ sizeof(ControllerToClientHeader));
     if (client_original_seq_tbl_.count(client_id) == 0) {
       printf("Traffic to an unknown client:%d, continue.\n", client_id);
       continue;
     }
+    ((ControllerToClientHeader*)pkt)->set_client_id(client_id);
+    ((ControllerToClientHeader*)pkt)->set_o_seq(++client_original_seq_tbl_[client_id]);
     int bs_id = 0;
     BSInfo info;
     bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
     if (is_route_available) {
       int contention_id = conflict_graph_[bs_id];
       packet_scheduler_tbl_[contention_id]->Enqueue(pkt, len, client_id);
+    } else {
+      for(auto it = packet_scheduler_tbl_.begin(); it != packet_scheduler_tbl_.end(); ++it) {
+        it->second->Enqueue(pkt, len, client_id);
+      }
     }
   }
   delete[] pkt;
@@ -510,19 +518,16 @@ void* WspaceController::ForwardToBS(void* arg) {
   struct sockaddr_in bs_addr;
   BSInfo info;
   vector<pair<char*, uint16_t> > pkts;
-  ((ControllerToClientHeader*)buf)->set_type(CONTROLLER_TO_CLIENT);
   while (1) {
     packet_scheduler_tbl_[*contention_id]->Dequeue(&pkts, &client_id);
     if(!tun_.IsValidClient(client_id)) {
       Perror("WspaceController::ForwardToBS: Invalid client[%d]!\n", client_id);
     }
-    ((ControllerToClientHeader*)buf)->set_client_id(client_id);
-    ((ControllerToClientHeader*)buf)->set_o_seq(++client_original_seq_tbl_[client_id]);
     // Send packets from a client in a round.
     for (auto &p : pkts) {
-      memcpy(buf + sizeof(ControllerToClientHeader), p.first, p.second);
+      memcpy(buf, p.first, p.second);
       delete[] p.first;
-      uint16 len = p.second + sizeof(ControllerToClientHeader);
+      uint16 len = p.second;
       int bs_id = 0;
       bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
       int duration = len * 8;
