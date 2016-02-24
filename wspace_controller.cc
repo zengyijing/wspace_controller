@@ -9,7 +9,7 @@ using namespace std;
 WspaceController *wspace_controller;
 
 int main(int argc, char **argv) {
-  const char* opts = "C:i:S:s:t:b:c:r:d:m:f:o:F:";
+  const char* opts = "C:i:S:s:t:b:c:r:d:m:f:o:F:R:";
   wspace_controller = new WspaceController(argc, argv, opts);
   wspace_controller->Init();
 
@@ -83,6 +83,9 @@ RoutingTable::RoutingTable() {
 
 RoutingTable::~RoutingTable() {
   Pthread_mutex_destroy(&lock_);
+  if (route_file_.is_open()) {
+    route_file_.close();
+  }
 }
 
 void RoutingTable::Init(const Tun &tun, const vector<int> &bs_ids,
@@ -90,7 +93,8 @@ void RoutingTable::Init(const Tun &tun, const vector<int> &bs_ids,
                         const FairnessMode &mode, 
                         unordered_map<int, int> &conflict_graph,
                         string f_stats, string f_conflict, 
-                        string f_route, string f_executable) {
+                        string f_route, string f_executable, 
+                        string f_route_log) {
   BSInfo info;
   printf("routing table init, tun.bs_ip_tbl_.size():%d\n", tun.bs_ip_tbl_.size());
   Lock();
@@ -116,6 +120,7 @@ void RoutingTable::Init(const Tun &tun, const vector<int> &bs_ids,
   f_conflict_ = f_conflict;
   f_route_ = f_route;
   f_executable_ = f_executable;
+  route_file_.open(f_route_log);
   UnLock();
 }
 
@@ -244,6 +249,18 @@ void RoutingTable::PrintConflictGraph(const string &filename) {
   ofs.close();
 }
 
+void RoutingTable::PrintRoutes(const string &filename) {
+  Lock();
+  TIME timer;
+  for (auto client_id : client_ids_) {
+    int bs_id = route_.count(client_id) ? route_[client_id] : -1;
+    route_file_ << bs_id << " ";
+  }
+  UnLock();
+  route_file_ << "\"" << timer.CvtCurrTime() << "\"" << endl;
+  route_file_.flush();
+}
+
 void RoutingTable::ParseRoutingTable(const string &filename) {
   ifstream ifs(filename.c_str());
   string line;
@@ -276,7 +293,7 @@ bool RoutingTable::FindRoute(int dest_id, int* bs_id, BSInfo *info) {
 WspaceController::WspaceController(int argc, char *argv[], const char *optstring): 
   update_route_interval_(100000), round_interval_(10), fairness_mode_(kEqualTime),
   scheduling_mode_(kMaxThroughput), f_stats_("stats.dat"), f_conflict_("conflict.dat"), 
-  f_route_("route.dat"), f_executable_("get_assignment.R") {
+  f_route_("route.dat"), f_executable_("get_assignment.R"), f_route_log_("") {
   int option;
   bool is_same_channel = false;  // Whether base stations are on the same channel.
   while ((option = getopt(argc, argv, optstring)) > 0) {
@@ -345,6 +362,11 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
       }
       case 'F': {
         f_executable_ = string(optarg);
+        break;
+      }
+      // Log base station assignments over time.
+      case 'R': {
+        f_route_log_ = string(optarg);
         break;
       }
       default: {
@@ -473,6 +495,9 @@ void* WspaceController::ComputeRoutes(void* arg) {
         it->second->ComputeQuantum(splited_throughputs[it->first]);
         it->second->PrintStats();
       }
+    }
+    if (f_route_log_ != "") {
+      routing_tbl_.PrintRoutes();
     }
     usleep(update_route_interval_);  
   }
