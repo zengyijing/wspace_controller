@@ -459,6 +459,9 @@ void* WspaceController::ComputeRoutes(void* arg) {
       if (is_route_available) {
         int contention_id = conflict_graph_[bs_id];
         splited_throughputs[contention_id][client_id] = it->second;
+      } else {
+        printf("WspaceController::ComputeRoutes did not find route\n");
+        assert(false);
       }
     }
     for(auto it = packet_scheduler_tbl_.begin(); it != packet_scheduler_tbl_.end(); ++it) {
@@ -543,12 +546,10 @@ void* WspaceController::ForwardToBS(void* arg) {
           //printf("broadcast through bs %d/%s\n", it->first, it->second);
           tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
           tun_.Write(Tun::kControl, buf, len, &bs_addr);
-          if (scheduling_mode_ == kDuplication) {
-            if (bs_stats_tbl_.GetThroughput(client_id, it->first, &throughput)) {   
-              int dur = len * 8.0 / throughput;
-              if (duration > dur)
-                duration = dur;
-            }
+          if (scheduling_mode_ == kDuplication && bs_stats_tbl_.GetThroughput(client_id, it->first, &throughput)) {   
+            int dur = len * 8.0 / throughput;
+            if (duration > dur)
+              duration = dur;
           }
         }
       }
