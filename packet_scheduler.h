@@ -27,7 +27,8 @@ class PktQueue {
   // Return 0 if the queue is empty.
   uint16_t PeekTopPktSize();
   int GetLength() { return q_.size(); }
-  void Erase();
+  void Clear();
+
  private:
   bool IsFull() { return q_.size() == kMaxSize; }
   bool IsEmpty() { return q_.empty(); }

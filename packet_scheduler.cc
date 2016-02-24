@@ -17,7 +17,7 @@ PktQueue::~PktQueue() {
   Pthread_cond_destroy(&empty_cond_);
 }
 
-void PktQueue::Erase() {
+void PktQueue::Clear() {
   Lock();
   while (!q_.empty()) {
     delete[] q_.front().first;
@@ -176,7 +176,7 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   }
   for (auto it = queues_.begin(); it != queues_.end(); ++it) {
     if (throughputs.count(it->first) == 0) {
-      it->second->Erase();
+      it->second->Clear();
     }
   }
   switch(fairness_mode()) {
