@@ -176,6 +176,7 @@ void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl,
   bs_stats_tbl.GetStats(&stats_);
   throughputs.clear();
   Lock();
+  route_.clear();
   for (auto client_id : client_ids_) {
     int bs_id = 0;
     double max_throughput = -1.0;
@@ -198,6 +199,7 @@ void RoutingTable::UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
   bs_stats_tbl.GetStats(&stats_);
   throughputs.clear();
   Lock();
+  route_.clear();
   for (auto client_id : client_ids_) {
     throughputs[client_id] = stats_[client_id][bs_id];
     route_[client_id] = bs_id;
@@ -246,6 +248,7 @@ void RoutingTable::ParseRoutingTable(const string &filename) {
   ifstream ifs(filename.c_str());
   string line;
   int i = 0;
+  route_.clear();
   while (getline(ifs, line)) {
     int bs_id = atoi(line.c_str());
     // The optimizer finds at least one base station 
