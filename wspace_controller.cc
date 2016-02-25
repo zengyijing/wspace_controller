@@ -77,6 +77,18 @@ bool BSStatsTable::GetThroughput(int client_id, int bs_id, double* throughput) {
   return throughput_found;
 }
 
+void BSStatsTable::PrintStats() {
+  Lock();
+  for (auto it_client = stats_.begin(); it_client != stats_.end(); ++it_client) {
+    cout << "client: " << it_client->first << " ";
+    for (auto it_bs = it_client->second.begin(); it_bs != it_client->second.end(); ++it_bs) {
+      cout << it_bs->second << " "; 
+    }
+    cout << endl;
+  }
+  UnLock();
+}
+
 RoutingTable::RoutingTable() {
   Pthread_mutex_init(&lock_, NULL);
 }
@@ -155,7 +167,6 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
       }
     }
   }
-  PrintStats(f_stats_);
   string cmd = "Rscript " + f_executable_ + " " + to_string(int(scheduling_mode)) +
                " " + to_string(int(fairness_mode_)) + " " + f_conflict_ + " " + f_stats_ +
                " " + f_route_;
@@ -174,6 +185,8 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
 void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl, 
                                              unordered_map<int, double> &throughputs) {
   bs_stats_tbl.GetStats(&stats_);
+  cout << "UpdateRoutes: bs_stats_tbl:" << endl;
+  bs_stats_tbl.PrintStats();
   throughputs.clear();
   Lock();
   route_.clear();
