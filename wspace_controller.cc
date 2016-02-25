@@ -82,7 +82,7 @@ void BSStatsTable::PrintStats() {
   for (auto it_client = stats_.begin(); it_client != stats_.end(); ++it_client) {
     cout << it_client->first << " ";
     for (auto it_bs = it_client->second.begin(); it_bs != it_client->second.end(); ++it_bs) {
-      cout << "("it_bs->first << ", " << it_bs->second << "), "; 
+      cout << "(" << it_bs->first << ", " << it_bs->second << "), "; 
     }
     cout << endl;
   }
