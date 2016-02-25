@@ -25,6 +25,7 @@ class BSStatsTable {
   // Only update existing values in stats_.
   void GetStats(unordered_map<int, unordered_map<int, double> > *stats);
   bool GetThroughput(int client_id, int bs_id, double* throughput);
+  void Clear();
   void PrintStats();
 
  private:

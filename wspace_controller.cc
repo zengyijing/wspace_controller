@@ -77,6 +77,12 @@ bool BSStatsTable::GetThroughput(int client_id, int bs_id, double* throughput) {
   return throughput_found;
 }
 
+void BSStatsTable::Clear() {
+  Lock();
+  stats_.clear();
+  UnLock();
+}
+
 void BSStatsTable::PrintStats() {
   Lock();
   for (auto it_client = stats_.begin(); it_client != stats_.end(); ++it_client) {
@@ -468,6 +474,7 @@ void* WspaceController::ComputeRoutes(void* arg) {
   unordered_map<int, double> throughputs; 
   while(1) {
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, scheduling_mode_);
+    bs_stats_tbl_.Clear();
     unordered_map<int, unordered_map<int, double> > splited_throughputs; // <contention id, <client_id, throughput> >.
     for(auto it = throughputs.begin(); it != throughputs.end(); ++it) {
       int client_id = it->first;
