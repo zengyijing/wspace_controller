@@ -551,3 +551,8 @@ void BSStatsPkt::ParsePkt(uint32 *seq, int *bs_id, int *client_id, double *throu
   *client_id = client_id_;
   *throughput = throughput_;
 }
+
+void BSStatsPkt::Print() const {
+  printf("BSStatsPkt: type: %d seq: %u bs: %d client: %d throughput: %.3f\n", 
+         type_, seq_, bs_id_, client_id_, throughput_);
+}
