@@ -167,6 +167,7 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
       }
     }
   }
+  PrintStats(f_stats_);
   string cmd = "Rscript " + f_executable_ + " " + to_string(int(scheduling_mode)) +
                " " + to_string(int(fairness_mode_)) + " " + f_conflict_ + " " + f_stats_ +
                " " + f_route_;
