@@ -169,7 +169,7 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
     stats_[client_id];
     for (auto bs_id : bs_ids_) {
       if (stats_[client_id].count(bs_id) == 0) {
-        stats_[client_id][bs_id] = -1.0;
+        stats_[client_id][bs_id] = MIN_THROUGHPUT;
       }
     }
   }
