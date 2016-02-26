@@ -236,8 +236,7 @@ unordered_map<int, PktScheduler::Status> PktScheduler::stats() {
 
 void PktScheduler::PrintStats() {
   Lock();
-  if (client_ids_.size() > 0)
-    printf("===PktScheduler: client: throughput quantum counter===\n");
+  printf("===PktScheduler: client: throughput quantum counter===\n");
   for (auto client_id: client_ids_) {
     printf("%d: %3f %3f %3f\n", client_id, stats_[client_id].throughput, 
                            stats_[client_id].quantum, stats_[client_id].counter);

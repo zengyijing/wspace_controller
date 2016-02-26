@@ -184,6 +184,7 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
   ParseRoutingTable(f_route_);
   for (auto client_id : client_ids_) {
     int bs_id = route_[client_id];
+    // @yijing: if bs_id == -1, choose the first bs and update throughput with kMinThroughput.
     throughputs[client_id] = stats_[client_id][bs_id];
   }
   UnLock();
@@ -206,6 +207,7 @@ void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl,
       throughputs[client_id] = max_throughput;
       printf("route to %d is through %d\n", client_id, route_[client_id]);
     } else {
+      // @yijing: use the first bs and update throughput with kMinThroughput.
       printf("no route to %d currently\n", client_id);
     }
   }
@@ -221,7 +223,8 @@ void RoutingTable::UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
   Lock();
   route_.clear();
   for (auto client_id : client_ids_) {
-    throughputs[client_id] = stats_[client_id][bs_id];
+    // @yijing: fix this.
+    throughputs[client_id] = (!stats_.count(client_id) || !stats_[client_id].count(bs_id)) ? kMinThroughput : stats_[client_id][bs_id];
     route_[client_id] = bs_id;
   }
   UnLock();
@@ -271,12 +274,7 @@ void RoutingTable::ParseRoutingTable(const string &filename) {
   route_.clear();
   while (getline(ifs, line)) {
     int bs_id = atoi(line.c_str());
-    // The optimizer finds at least one base station 
-    // with non-zero throughput.
-    if (bs_id > 0) {
-      route_[client_ids_[i]] = bs_id;
-    }
-    ++i;
+    route_[client_ids_[i++]] = bs_id;
   }
   ifs.close();
 }
