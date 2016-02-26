@@ -13,7 +13,10 @@
 
 class TIME {
  public:
-  TIME() {}
+  TIME() {
+    GetCurrTime();
+  }
+
   ~TIME() {}
 
   TIME(int sec, int usec) {
