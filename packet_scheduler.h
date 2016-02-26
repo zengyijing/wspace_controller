@@ -112,7 +112,6 @@ class PktScheduler {
   void Lock() { Pthread_mutex_lock(&lock_); }
   void UnLock() { Pthread_mutex_unlock(&lock_); }
 
-  const double kMinThroughput;
   vector<int> client_ids_;
   uint32_t pkt_queue_size_;
   unordered_map<int, PktQueue*> queues_;   // <client_id, pkt_queue>.

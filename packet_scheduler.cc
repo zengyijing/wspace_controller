@@ -106,13 +106,12 @@ PktScheduler::PktScheduler(double min_throughput,
                            uint32_t pkt_queue_size,
                            uint32_t round_interval, 
                            const FairnessMode &fairness_mode) 
-    : kMinThroughput(min_throughput), client_ids_(client_ids), 
-      pkt_queue_size_(pkt_queue_size), round_interval_(round_interval), 
-      fairness_mode_(fairness_mode) {
+    : client_ids_(client_ids), pkt_queue_size_(pkt_queue_size),
+      round_interval_(round_interval), fairness_mode_(fairness_mode) {
   for (auto client_id : client_ids_) {
     queues_[client_id] = new PktQueue(pkt_queue_size);
     stats_[client_id].quantum = double(round_interval_)/client_ids_.size(); 
-    stats_[client_id].throughput = kMinThroughput;  // At least 0.01Mbps.
+    stats_[client_id].throughput = min_throughput;
   }
   Pthread_mutex_init(&lock_, NULL);
 }
@@ -169,7 +168,7 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   client_ids_.clear();
   for (const auto &p : throughputs) {
     client_ids_.push_back(p.first);
-    stats_[p.first].throughput = max(kMinThroughput, p.second);
+    stats_[p.first].throughput = p.second;
     if (queues_.count(p.first) == 0) {
       queues_[p.first] = new PktQueue(pkt_queue_size_);
     }

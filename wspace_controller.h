@@ -13,7 +13,7 @@
 #include "tun.h"
 #include "packet_scheduler.h"
 
-#define MIN_THROUGHPUT 0.01
+#define MIN_THROUGHPUT 1
 #define PKT_QUEUE_SIZE 1000 
 
 class BSStatsTable {

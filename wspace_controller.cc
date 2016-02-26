@@ -184,8 +184,12 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
   ParseRoutingTable(f_route_);
   for (auto client_id : client_ids_) {
     int bs_id = route_[client_id];
-    // @yijing: if bs_id == -1, choose the first bs and update throughput with kMinThroughput.
-    throughputs[client_id] = stats_[client_id][bs_id];
+    if (bs_id == -1) {
+      route_[client_id] = bs_ids_[0];
+      throughputs[client_id] = MIN_THROUGHPUT;
+    } else {
+      throughputs[client_id] = stats_[client_id][bs_id];
+    }
   }
   UnLock();
 }
@@ -207,8 +211,9 @@ void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl,
       throughputs[client_id] = max_throughput;
       printf("route to %d is through %d\n", client_id, route_[client_id]);
     } else {
-      // @yijing: use the first bs and update throughput with kMinThroughput.
-      printf("no route to %d currently\n", client_id);
+      printf("no route to %d currently, set route to default bs %d\n", client_id, bs_ids_[0]);
+      route_[client_id] = bs_ids_[0];
+      throughputs[client_id] = MIN_THROUGHPUT;
     }
   }
   UnLock();
@@ -223,8 +228,11 @@ void RoutingTable::UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
   Lock();
   route_.clear();
   for (auto client_id : client_ids_) {
-    // @yijing: fix this.
-    throughputs[client_id] = (!stats_.count(client_id) || !stats_[client_id].count(bs_id)) ? kMinThroughput : stats_[client_id][bs_id];
+    if(!stats_.count(client_id) || !stats_[client_id].count(bs_id) || stats_[client_id][bs_id] < MIN_THROUGHPUT) {
+      throughputs[client_id] = MIN_THROUGHPUT;
+    } else {
+      throughputs[client_id] = stats_[client_id][bs_id];
+    }
     route_[client_id] = bs_id;
   }
   UnLock();
