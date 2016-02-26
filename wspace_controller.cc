@@ -249,7 +249,7 @@ void RoutingTable::PrintConflictGraph(const string &filename) {
   ofs.close();
 }
 
-void RoutingTable::PrintRoutes(const string &filename) {
+void RoutingTable::PrintRoutes() {
   Lock();
   TIME timer;
   for (auto client_id : client_ids_) {
@@ -418,7 +418,7 @@ void WspaceController::ParseIP(const vector<int> &ids, unordered_map<int, char [
 void WspaceController::Init() {
   tun_.InitSock();
   routing_tbl_.Init(tun_, bs_ids_, client_ids_, fairness_mode_, conflict_graph_,
-                    f_stats_, f_conflict_, f_route_, f_executable_);
+                    f_stats_, f_conflict_, f_route_, f_executable_, f_route_log_);
   if (scheduling_mode_ == kOptimizer) {
     routing_tbl_.PrintConflictGraph(f_conflict_);
   }
