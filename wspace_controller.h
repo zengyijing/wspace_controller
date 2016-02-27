@@ -13,7 +13,7 @@
 #include "tun.h"
 #include "packet_scheduler.h"
 
-#define MIN_THROUGHPUT 0.01
+#define MIN_THROUGHPUT 1
 #define PKT_QUEUE_SIZE 1000 
 
 class BSStatsTable {
@@ -24,8 +24,9 @@ class BSStatsTable {
   void Update(int client_id, int bs_id, double throughput);
   // Only update existing values in stats_.
   void GetStats(unordered_map<int, unordered_map<int, double> > *stats);
-
   bool GetThroughput(int client_id, int bs_id, double* throughput);
+  void Clear();
+  void PrintStats();
 
  private:
   void Lock() { Pthread_mutex_lock(&lock_); }
@@ -65,8 +66,9 @@ class RoutingTable {
             const vector<int> &client_ids, 
             const FairnessMode &mode,
             unordered_map<int, int> &conflict_graph, 
-      string f_stats, string f_conflict, 
-      string f_route, string f_executable);
+            string f_stats, string f_conflict, 
+            string f_route, string f_executable, 
+            string f_route_log);
 
   // throughputs - throughput of the selected bs for each client.
   void UpdateRoutes(BSStatsTable &bs_stats_tbl, 
@@ -74,6 +76,8 @@ class RoutingTable {
                     SchedulingMode scheduling_mode);
   bool FindRoute(int dest_id, int* bs_id, BSInfo *info);
   void PrintConflictGraph(const string &filename);
+  // With Lock.
+  void PrintRoutes();
 
  private:
   // With lock.
@@ -81,7 +85,8 @@ class RoutingTable {
                                  unordered_map<int, double> &throughputs);
   // With lock.
   void UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
-                             unordered_map<int, double> &throughputs);
+                             unordered_map<int, double> &throughputs,
+                             SchedulingMode scheduling_mode);
   // With lock.
   void UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
                               unordered_map<int, double> &throughputs);
@@ -102,6 +107,7 @@ class RoutingTable {
   unordered_map<int, double> throughputs_;
   string f_stats_, f_conflict_, f_route_, f_executable_;
   FairnessMode fairness_mode_;
+  ofstream route_file_;
   pthread_mutex_t lock_;
 };
 
@@ -119,7 +125,7 @@ class WspaceController {
   void Init();
   void ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table);
   int ExtractClientID(const char *pkt);
-
+  
 // Data member
   pthread_t p_recv_from_bs_, p_compute_route_, p_read_tun_;
   unordered_map<int, pthread_t> p_forward_to_bs_tbl_;
@@ -135,7 +141,7 @@ class WspaceController {
   vector<int> bs_ids_;
   vector<int> client_ids_;
   unordered_map<int, int> conflict_graph_;
-  string f_stats_, f_conflict_, f_route_, f_executable_;
+  string f_stats_, f_conflict_, f_route_, f_executable_, f_route_log_;
   SchedulingMode scheduling_mode_;
 };
 

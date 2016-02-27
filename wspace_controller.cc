@@ -9,7 +9,7 @@ using namespace std;
 WspaceController *wspace_controller;
 
 int main(int argc, char **argv) {
-  const char* opts = "C:i:S:s:t:b:c:r:d:m:f:o:";
+  const char* opts = "C:i:S:s:t:b:c:r:d:m:f:o:F:R:";
   wspace_controller = new WspaceController(argc, argv, opts);
   wspace_controller->Init();
 
@@ -77,12 +77,33 @@ bool BSStatsTable::GetThroughput(int client_id, int bs_id, double* throughput) {
   return throughput_found;
 }
 
+void BSStatsTable::Clear() {
+  Lock();
+  stats_.clear();
+  UnLock();
+}
+
+void BSStatsTable::PrintStats() {
+  Lock();
+  for (auto it_client = stats_.begin(); it_client != stats_.end(); ++it_client) {
+    cout << it_client->first << " ";
+    for (auto it_bs = it_client->second.begin(); it_bs != it_client->second.end(); ++it_bs) {
+      cout << "(" << it_bs->first << ", " << it_bs->second << "), "; 
+    }
+    cout << endl;
+  }
+  UnLock();
+}
+
 RoutingTable::RoutingTable() {
   Pthread_mutex_init(&lock_, NULL);
 }
 
 RoutingTable::~RoutingTable() {
   Pthread_mutex_destroy(&lock_);
+  if (route_file_.is_open()) {
+    route_file_.close();
+  }
 }
 
 void RoutingTable::Init(const Tun &tun, const vector<int> &bs_ids,
@@ -90,7 +111,8 @@ void RoutingTable::Init(const Tun &tun, const vector<int> &bs_ids,
                         const FairnessMode &mode, 
                         unordered_map<int, int> &conflict_graph,
                         string f_stats, string f_conflict, 
-                        string f_route, string f_executable) {
+                        string f_route, string f_executable, 
+                        string f_route_log) {
   BSInfo info;
   printf("routing table init, tun.bs_ip_tbl_.size():%d\n", tun.bs_ip_tbl_.size());
   Lock();
@@ -116,6 +138,7 @@ void RoutingTable::Init(const Tun &tun, const vector<int> &bs_ids,
   f_conflict_ = f_conflict;
   f_route_ = f_route;
   f_executable_ = f_executable;
+  route_file_.open(f_route_log);
   UnLock();
 }
 
@@ -130,7 +153,7 @@ void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl,
       break;
 
     case kOptimizer:
-      UpdateRoutesOptimizer(bs_stats_tbl, throughputs);
+      UpdateRoutesOptimizer(bs_stats_tbl, throughputs, scheduling_mode);
       break;
     
     case kRoundRobin:
@@ -143,48 +166,59 @@ void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl,
 }
 
 void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl, 
-                                         unordered_map<int, double> &throughputs) {
-  Lock();
+                                         unordered_map<int, double> &throughputs,
+                                         SchedulingMode scheduling_mode) {
   bs_stats_tbl.GetStats(&stats_);
   // Fill invalid entries.
   for (auto client_id : client_ids_) {
     stats_[client_id];
     for (auto bs_id : bs_ids_) {
       if (stats_[client_id].count(bs_id) == 0) {
-        stats_[client_id][bs_id] = -1.0;
+        stats_[client_id][bs_id] = MIN_THROUGHPUT;
       }
     }
   }
   PrintStats(f_stats_);
-  string cmd = "Rscript " + " " + f_executable_ + " " + to_string(int(fairness_mode_)) +
-               " " + to_string(int(scheduling_mode_)) + " " + f_conflict_ + " " + f_stats_ +
+  string cmd = "Rscript " + f_executable_ + " " + to_string(int(scheduling_mode)) +
+               " " + to_string(int(fairness_mode_)) + " " + f_conflict_ + " " + f_stats_ +
                " " + f_route_;
   printf("Execute cmd: %s\n", cmd.c_str());
   system(cmd.c_str());
-  ParseRoutingTable(f_route_);
   throughputs.clear();
+  Lock();
+  ParseRoutingTable(f_route_);
   for (auto client_id : client_ids_) {
     int bs_id = route_[client_id];
-    throughputs[client_id] = stats_[client_id][bs_id];
+    if (bs_id == -1) {
+      route_[client_id] = bs_ids_[0];
+      throughputs[client_id] = MIN_THROUGHPUT;
+    } else {
+      throughputs[client_id] = stats_[client_id][bs_id];
+    }
   }
   UnLock();
 }
 
 void RoutingTable::UpdateRoutesMaxThroughput(BSStatsTable &bs_stats_tbl, 
                                              unordered_map<int, double> &throughputs) {
-  Lock();
   bs_stats_tbl.GetStats(&stats_);
+  cout << "UpdateRoutes: bs_stats_tbl:" << endl;
+  bs_stats_tbl.PrintStats();
   throughputs.clear();
+  Lock();
+  route_.clear();
   for (auto client_id : client_ids_) {
     int bs_id = 0;
     double max_throughput = -1.0;
     bool is_route_available = FindMaxThroughputBS(client_id, &bs_id, &max_throughput); 
-    if (is_route_available) {
+    if (is_route_available && max_throughput > 0) {
       route_[client_id] = bs_id;
       throughputs[client_id] = max_throughput;
       printf("route to %d is through %d\n", client_id, route_[client_id]);
     } else {
-      printf("no route to %d currently\n", client_id);
+      printf("no route to %d currently, set route to default bs %d\n", client_id, bs_ids_[0]);
+      route_[client_id] = bs_ids_[0];
+      throughputs[client_id] = MIN_THROUGHPUT;
     }
   }
   UnLock();
@@ -194,11 +228,16 @@ void RoutingTable::UpdateRoutesRoundRobin(BSStatsTable &bs_stats_tbl,
                                           unordered_map<int, double> &throughputs) {
   static uint32 bs_index = 0;
   int bs_id = bs_ids_[bs_index++ % bs_ids_.size()];
-  Lock();
   bs_stats_tbl.GetStats(&stats_);
   throughputs.clear();
+  Lock();
+  route_.clear();
   for (auto client_id : client_ids_) {
-    throughputs[client_id] = stats_[client_id][bs_id];
+    if(!stats_.count(client_id) || !stats_[client_id].count(bs_id) || stats_[client_id][bs_id] < MIN_THROUGHPUT) {
+      throughputs[client_id] = MIN_THROUGHPUT;
+    } else {
+      throughputs[client_id] = stats_[client_id][bs_id];
+    }
     route_[client_id] = bs_id;
   }
   UnLock();
@@ -235,18 +274,32 @@ void RoutingTable::PrintStats(const string &filename) {
 void RoutingTable::PrintConflictGraph(const string &filename) {
   ofstream ofs(filename.c_str());
   for (auto bs_id : bs_ids_) { 
-    ofs << bs_id << "," << conflict_graph_[bs_id] << endl;
+    ofs << bs_id << " " << conflict_graph_[bs_id] << endl;
   }
   ofs.flush();
   ofs.close();
+}
+
+void RoutingTable::PrintRoutes() {
+  Lock();
+  TIME timer;
+  for (auto client_id : client_ids_) {
+    int bs_id = route_.count(client_id) ? route_[client_id] : -1;
+    route_file_ << bs_id << " ";
+  }
+  UnLock();
+  route_file_ << "\"" << timer.CvtCurrTime() << "\"" << endl;
+  route_file_.flush();
 }
 
 void RoutingTable::ParseRoutingTable(const string &filename) {
   ifstream ifs(filename.c_str());
   string line;
   int i = 0;
+  route_.clear();
   while (getline(ifs, line)) {
-    route_[client_ids_[i++]] = atoi(line.c_str());
+    int bs_id = atoi(line.c_str());
+    route_[client_ids_[i++]] = bs_id;
   }
   ifs.close();
 }
@@ -266,7 +319,7 @@ bool RoutingTable::FindRoute(int dest_id, int* bs_id, BSInfo *info) {
 WspaceController::WspaceController(int argc, char *argv[], const char *optstring): 
   update_route_interval_(100000), round_interval_(10), fairness_mode_(kEqualTime),
   scheduling_mode_(kMaxThroughput), f_stats_("stats.dat"), f_conflict_("conflict.dat"), 
-  f_route_("route.dat"), f_executable_("get_assignment.R") {
+  f_route_("route.dat"), f_executable_("get_assignment.R"), f_route_log_("") {
   int option;
   bool is_same_channel = false;  // Whether base stations are on the same channel.
   while ((option = getopt(argc, argv, optstring)) > 0) {
@@ -333,6 +386,15 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
         scheduling_mode_ = (SchedulingMode) atoi(optarg);
         break;
       }
+      case 'F': {
+        f_executable_ = string(optarg);
+        break;
+      }
+      // Log base station assignments over time.
+      case 'R': {
+        f_route_log_ = string(optarg);
+        break;
+      }
       default: {
         Perror("Usage: %s -i tun0/tap0 -C controller_ip_eth -b bs_ids \
                 -S bs_ip_eth -c client_ids -s client_ip_eth -t update_interval \
@@ -350,9 +412,6 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
   // Construct conflict graph for the route optimizer. 
   for (auto bs_id : bs_ids_) {
     conflict_graph_[bs_id] = is_same_channel ? 1 : bs_id;
-  }
-  if (scheduling_mode_ == kOptimizer) {
-    routing_tbl_.PrintConflictGraph(f_conflict_);
   }
   for (auto it = conflict_graph_.begin(); it != conflict_graph_.end(); ++it) {
     if(packet_scheduler_tbl_.count(it->second) == 0)
@@ -385,7 +444,10 @@ void WspaceController::ParseIP(const vector<int> &ids, unordered_map<int, char [
 void WspaceController::Init() {
   tun_.InitSock();
   routing_tbl_.Init(tun_, bs_ids_, client_ids_, fairness_mode_, conflict_graph_,
-                    f_stats_, f_conflict_, f_route_, f_executable_);
+                    f_stats_, f_conflict_, f_route_, f_executable_, f_route_log_);
+  if (scheduling_mode_ == kOptimizer) {
+    routing_tbl_.PrintConflictGraph(f_conflict_);
+  }
 }
 
 void* WspaceController::RecvFromBS(void* arg) {
@@ -407,6 +469,7 @@ void* WspaceController::RecvFromBS(void* arg) {
       int client_id;
       double throughput;
       stats_pkt->ParsePkt(&seq, &bs_id, &client_id, &throughput);
+      //stats_pkt->Print();
       if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id][client_id] < seq) {
         current_seq[bs_id][client_id] = seq;
         // Assume bs_id = radio_id for simplicity.
@@ -439,6 +502,7 @@ void* WspaceController::ComputeRoutes(void* arg) {
   unordered_map<int, double> throughputs; 
   while(1) {
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, scheduling_mode_);
+    bs_stats_tbl_.Clear();
     unordered_map<int, unordered_map<int, double> > splited_throughputs; // <contention id, <client_id, throughput> >.
     for(auto it = throughputs.begin(); it != throughputs.end(); ++it) {
       int client_id = it->first;
@@ -448,6 +512,9 @@ void* WspaceController::ComputeRoutes(void* arg) {
       if (is_route_available) {
         int contention_id = conflict_graph_[bs_id];
         splited_throughputs[contention_id][client_id] = it->second;
+      } else {
+        printf("WspaceController::ComputeRoutes did not find route\n");
+        assert(false);
       }
     }
     for(auto it = packet_scheduler_tbl_.begin(); it != packet_scheduler_tbl_.end(); ++it) {
@@ -456,6 +523,9 @@ void* WspaceController::ComputeRoutes(void* arg) {
         it->second->ComputeQuantum(splited_throughputs[it->first]);
         it->second->PrintStats();
       }
+    }
+    if (f_route_log_ != "") {
+      routing_tbl_.PrintRoutes();
     }
     usleep(update_route_interval_);  
   }
@@ -473,19 +543,27 @@ int WspaceController::ExtractClientID(const char *pkt) {
 
 void* WspaceController::ReadTun(void *arg) {
   char *pkt = new char[PKT_SIZE];
+  ((ControllerToClientHeader*)pkt)->set_type(CONTROLLER_TO_CLIENT);
   while (true) { 
-    uint16 len = tun_.Read(Tun::kTun, pkt, PKT_SIZE);
-    int client_id = ExtractClientID(pkt);
+    uint16 len = tun_.Read(Tun::kTun, pkt + sizeof(ControllerToClientHeader), PKT_SIZE - sizeof(ControllerToClientHeader));
+    len += sizeof(ControllerToClientHeader);
+    int client_id = ExtractClientID(pkt+ sizeof(ControllerToClientHeader));
     if (client_original_seq_tbl_.count(client_id) == 0) {
       printf("Traffic to an unknown client:%d, continue.\n", client_id);
       continue;
     }
+    ((ControllerToClientHeader*)pkt)->set_client_id(client_id);
+    ((ControllerToClientHeader*)pkt)->set_o_seq(++client_original_seq_tbl_[client_id]);
     int bs_id = 0;
     BSInfo info;
     bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
     if (is_route_available) {
       int contention_id = conflict_graph_[bs_id];
       packet_scheduler_tbl_[contention_id]->Enqueue(pkt, len, client_id);
+    } else {
+      for(auto it = packet_scheduler_tbl_.begin(); it != packet_scheduler_tbl_.end(); ++it) {
+        it->second->Enqueue(pkt, len, client_id);
+      }
     }
   }
   delete[] pkt;
@@ -499,19 +577,16 @@ void* WspaceController::ForwardToBS(void* arg) {
   struct sockaddr_in bs_addr;
   BSInfo info;
   vector<pair<char*, uint16_t> > pkts;
-  ((ControllerToClientHeader*)buf)->set_type(CONTROLLER_TO_CLIENT);
   while (1) {
     packet_scheduler_tbl_[*contention_id]->Dequeue(&pkts, &client_id);
     if(!tun_.IsValidClient(client_id)) {
       Perror("WspaceController::ForwardToBS: Invalid client[%d]!\n", client_id);
     }
-    ((ControllerToClientHeader*)buf)->set_client_id(client_id);
-    ((ControllerToClientHeader*)buf)->set_o_seq(++client_original_seq_tbl_[client_id]);
     // Send packets from a client in a round.
     for (auto &p : pkts) {
-      memcpy(buf + sizeof(ControllerToClientHeader), p.first, p.second);
+      memcpy(buf, p.first, p.second);
       delete[] p.first;
-      uint16 len = p.second + sizeof(ControllerToClientHeader);
+      uint16 len = p.second;
       int bs_id = 0;
       bool is_route_available = routing_tbl_.FindRoute(client_id, &bs_id, &info);
       int duration = len * 8;
@@ -527,12 +602,10 @@ void* WspaceController::ForwardToBS(void* arg) {
           //printf("broadcast through bs %d/%s\n", it->first, it->second);
           tun_.CreateAddr(it->second, PORT_ETH, &bs_addr);
           tun_.Write(Tun::kControl, buf, len, &bs_addr);
-          if (scheduling_mode_ == kDuplication) {
-            if (bs_stats_tbl_.GetThroughput(client_id, it->first, &throughput)) {   
-              int dur = len * 8.0 / throughput;
-              if (duration > dur)
-                duration = dur;
-            }
+          if (scheduling_mode_ == kDuplication && bs_stats_tbl_.GetThroughput(client_id, it->first, &throughput)) {   
+            int dur = len * 8.0 / throughput;
+            if (duration > dur)
+              duration = dur;
           }
         }
       }

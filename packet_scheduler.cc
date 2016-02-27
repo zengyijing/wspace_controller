@@ -17,6 +17,15 @@ PktQueue::~PktQueue() {
   Pthread_cond_destroy(&empty_cond_);
 }
 
+void PktQueue::Clear() {
+  Lock();
+  while (!q_.empty()) {
+    delete[] q_.front().first;
+    q_.pop();
+  }
+  UnLock();
+}
+
 bool PktQueue::Enqueue(const char *pkt, uint16_t len) {
   if (len <= 0) {
     perror("PktQueue::Enqueue invalid len\n");
@@ -97,13 +106,12 @@ PktScheduler::PktScheduler(double min_throughput,
                            uint32_t pkt_queue_size,
                            uint32_t round_interval, 
                            const FairnessMode &fairness_mode) 
-    : kMinThroughput(min_throughput), client_ids_(client_ids), 
-      pkt_queue_size_(pkt_queue_size), round_interval_(round_interval), 
-      fairness_mode_(fairness_mode) {
+    : client_ids_(client_ids), pkt_queue_size_(pkt_queue_size),
+      round_interval_(round_interval), fairness_mode_(fairness_mode) {
   for (auto client_id : client_ids_) {
     queues_[client_id] = new PktQueue(pkt_queue_size);
     stats_[client_id].quantum = double(round_interval_)/client_ids_.size(); 
-    stats_[client_id].throughput = kMinThroughput;  // At least 0.01Mbps.
+    stats_[client_id].throughput = min_throughput;
   }
   Pthread_mutex_init(&lock_, NULL);
 }
@@ -160,21 +168,16 @@ void PktScheduler::ComputeQuantum(const unordered_map<int, double> &throughputs)
   client_ids_.clear();
   for (const auto &p : throughputs) {
     client_ids_.push_back(p.first);
-    stats_[p.first].throughput = max(kMinThroughput, p.second);
+    stats_[p.first].throughput = p.second;
     if (queues_.count(p.first) == 0) {
       queues_[p.first] = new PktQueue(pkt_queue_size_);
     }
   }
-  vector<int> remove_queue;
   for (auto it = queues_.begin(); it != queues_.end(); ++it) {
     if (throughputs.count(it->first) == 0) {
-      delete it->second;
-      remove_queue.push_back(it->first);
+      it->second->Clear();
     }
   }
-  for (auto it = remove_queue.begin(); it != remove_queue.end(); ++it) {
-    queues_.erase(*it);
-  } 
   switch(fairness_mode()) {
     case kEqualTime:
       ComputeQuantumEqualTime();
@@ -232,8 +235,7 @@ unordered_map<int, PktScheduler::Status> PktScheduler::stats() {
 
 void PktScheduler::PrintStats() {
   Lock();
-  if (client_ids_.size() > 0)
-    printf("===PktScheduler: client: throughput quantum counter===\n");
+  printf("===PktScheduler: client: throughput quantum counter===\n");
   for (auto client_id: client_ids_) {
     printf("%d: %3f %3f %3f\n", client_id, stats_[client_id].throughput, 
                            stats_[client_id].quantum, stats_[client_id].counter);
