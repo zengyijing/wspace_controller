@@ -469,7 +469,7 @@ void* WspaceController::RecvFromBS(void* arg) {
       int client_id;
       double throughput;
       stats_pkt->ParsePkt(&seq, &bs_id, &client_id, &throughput);
-      stats_pkt->Print();
+      //stats_pkt->Print();
       if(tun_.bs_ip_tbl_.count(bs_id) && tun_.client_ip_tbl_.count(client_id) && current_seq[bs_id][client_id] < seq) {
         current_seq[bs_id][client_id] = seq;
         // Assume bs_id = radio_id for simplicity.
