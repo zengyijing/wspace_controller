@@ -179,6 +179,7 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
     }
   }
   PrintStats(f_stats_);
+  usleep(100000);
   string cmd = "Rscript " + f_executable_ + " " + to_string(int(scheduling_mode)) +
                " " + to_string(int(fairness_mode_)) + " " + f_conflict_ + " " + f_stats_ +
                " " + f_route_;
@@ -188,6 +189,10 @@ void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl,
   Lock();
   ParseRoutingTable(f_route_);
   for (auto client_id : client_ids_) {
+    if (route_.count(client_id) == 0) {
+      printf("Warining: UpdateRouteOptimizer: route not found client:%d\n", client_id);
+      continue;
+    }
     int bs_id = route_[client_id];
     if (bs_id == -1) {
       route_[client_id] = bs_ids_[0];

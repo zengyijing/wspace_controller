@@ -58,9 +58,7 @@ void Tun::InitSock() {
 
   // Create sockets
   sock_fd_eth_ = CreateSock();
-
   CreateAddr(controller_ip_eth_, port_eth_, &controller_addr_eth_); 
-
   BindSocket(sock_fd_eth_, &controller_addr_eth_);
 
 }
