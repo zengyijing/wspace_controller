@@ -432,7 +432,7 @@ class AthHeader {
  public:
   AthHeader() {}
   ~AthHeader() {}
-  AthHeader(char type, uint16 rate) : type_(type), raw_seq_(0), rate_(rate) {}
+  AthHeader(char type, uint16 rate) : type_(type), raw_seq_(0), rate_(rate), bs_id_(0), client_id_(0) {}
 
   uint16 GetRate();
   void SetRate(uint16 rate);
@@ -446,10 +446,16 @@ class AthHeader {
   void set_is_good(bool is_good) { is_good_ = is_good; } 
 #endif
 
+  void set_bs_id(int bs_id) { bs_id_ = bs_id; }
+  int bs_id() { return bs_id_; }
+  void set_client_id(int client_id) { client_id_ = client_id; }
+  int client_id() { return client_id_; }
 // Data
   char type_;
   uint32 raw_seq_;
   uint16 rate_;
+  int bs_id_;
+  int client_id_;
 #ifdef RAND_DROP
   bool is_good_;
 #endif
@@ -474,7 +480,7 @@ class AthCodeHeader : public AthHeader {
   void SetHeader(uint32 raw_seq, uint32 batch_id, uint32 start_seq, 
       char type, int ind, int k, int n, const uint16 *len_arr);
   void SetInd(uint8 ind) { ind_ = ind; }
-  void ParseHeader(uint32 *batch_id, uint32 *start_seq, int *ind, int *k, int *n) const;  
+  void ParseHeader(uint32 *batch_id, uint32 *start_seq, int *ind, int *k, int *n, int *bs_id, int* client_id) const;  
   void GetLenArr(uint16 *len_arr) const {
     assert(k_ > 0);
     memcpy(len_arr, (uint8*)this + ATH_CODE_HEADER_SIZE, k_ * sizeof(uint16));

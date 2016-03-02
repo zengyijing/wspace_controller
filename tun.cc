@@ -32,7 +32,7 @@ void Tun::CreateAddr(const char *ip, int port, sockaddr_in *addr) {
   memset(addr, 0, sizeof(sockaddr_in));
   addr->sin_family = AF_INET;
   if (!strcmp(ip, controller_ip_eth_)) {
-    addr->sin_addr.s_addr = inet_addr(INADDR_ANY);
+    addr->sin_addr.s_addr = htonl(INADDR_ANY);
   } else {
     addr->sin_addr.s_addr = inet_addr(ip);
   }

@@ -492,6 +492,11 @@ void* WspaceController::RecvFromBS(void* arg) {
       struct sockaddr_in bs_addr;
       tun_.CreateAddr(tun_.bs_ip_tbl_.begin()->second, PORT_ETH, &bs_addr);
       tun_.Write(Tun::kControl, pkt, nread, &bs_addr);
+    } else if (pkt[0] == ATH_CODE) {
+      AthHeader *hdr = (AthHeader*)pkt;
+      struct sockaddr_in client_addr;
+      tun_.CreateAddr(tun_.client_ip_tbl_.begin()->second, PORT_ETH, &client_addr);
+      tun_.Write(Tun::kControl, pkt, nread, &client_addr);
     }
   }
   delete[] pkt;

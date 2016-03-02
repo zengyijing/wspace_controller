@@ -345,13 +345,17 @@ void AthCodeHeader::SetHeader(uint32 raw_seq, uint32 batch_id, uint32 start_seq,
   memcpy((uint8*)this + ATH_CODE_HEADER_SIZE, len_arr, k_ * sizeof(uint16));
 }
 
-void AthCodeHeader::ParseHeader(uint32 *batch_id, uint32 *start_seq, int *ind, int *k, int *n) const {
+void AthCodeHeader::ParseHeader(uint32 *batch_id, uint32 *start_seq, int *ind,
+                                int *k, int *n, int *bs_id, int *client_id) const {
+  assert(type_ == ATH_CODE);
   assert(batch_id_ > 0 && start_seq_ > 0 && ind_ < n_ && k_ <= n_ && k_ > 0 && k_ <= MAX_BATCH_SIZE);
   *batch_id = batch_id_;
   *start_seq = start_seq_;
   *ind = ind_;
   *k = k_;
   *n = n_;
+  *bs_id = bs_id_;
+  *client_id = client_id_;
 }
 
 /** GPS Header.*/
