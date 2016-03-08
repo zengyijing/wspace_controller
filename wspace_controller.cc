@@ -514,9 +514,6 @@ void* WspaceController::RecvFromBS(void* arg) {
 void* WspaceController::ComputeRoutes(void* arg) {
   unordered_map<int, double> throughputs; 
   while(1) {
-    if (f_route_log_ != "") {
-      routing_tbl_.LogStart();
-    } 
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, scheduling_mode_);
     bs_stats_tbl_.Clear();
     unordered_map<int, unordered_map<int, double> > splited_throughputs; // <contention id, <client_id, throughput> >.
