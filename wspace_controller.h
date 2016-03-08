@@ -109,6 +109,7 @@ class RoutingTable {
   FairnessMode fairness_mode_;
   ofstream route_file_;
   pthread_mutex_t lock_;
+  double duration_;  // in milliseconds.
 };
 
 class WspaceController {

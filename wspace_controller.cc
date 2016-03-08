@@ -145,6 +145,7 @@ void RoutingTable::Init(const Tun &tun, const vector<int> &bs_ids,
 void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl, 
                                 unordered_map<int, double> &throughputs,
                                 SchedulingMode scheduling_mode) {
+  TIME start;
   switch (scheduling_mode) {
     case kMaxThroughput:
  
@@ -163,6 +164,8 @@ void RoutingTable::UpdateRoutes(BSStatsTable &bs_stats_tbl,
     default:
       assert(false);
   }
+  TIME end;
+  duration_ = (end - start) / 1000.0;
 }
 
 void RoutingTable::UpdateRoutesOptimizer(BSStatsTable &bs_stats_tbl, 
@@ -293,7 +296,7 @@ void RoutingTable::PrintRoutes() {
     route_file_ << bs_id << " ";
   }
   UnLock();
-  route_file_ << "\"" << timer.CvtCurrTime() << "\"" << endl;
+  route_file_ << duration_ << " \"" << timer.CvtCurrTime() << "\"" << endl;
   route_file_.flush();
 }
 
@@ -511,6 +514,9 @@ void* WspaceController::RecvFromBS(void* arg) {
 void* WspaceController::ComputeRoutes(void* arg) {
   unordered_map<int, double> throughputs; 
   while(1) {
+    if (f_route_log_ != "") {
+      routing_tbl_.LogStart();
+    } 
     routing_tbl_.UpdateRoutes(bs_stats_tbl_, throughputs, scheduling_mode_);
     bs_stats_tbl_.Clear();
     unordered_map<int, unordered_map<int, double> > splited_throughputs; // <contention id, <client_id, throughput> >.
