@@ -483,7 +483,7 @@ void* WspaceController::RecvFromBS(void* arg) {
         // Assume bs_id = radio_id for simplicity.
         bs_stats_tbl_.Update(client_id, bs_id, throughput);
       } else {
-        Perror("WspaceController::RecvFromBS: Received invalid BSStatsPkt\n");
+        printf("WspaceController::RecvFromBS: Received invalid BSStatsPkt\n");
       }
     } else if (pkt[0] == CELL_DATA) {
       //printf("received uplink data message.\n");
