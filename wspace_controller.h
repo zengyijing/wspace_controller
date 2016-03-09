@@ -125,6 +125,7 @@ class WspaceController {
 
   void Init();
   void ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table);
+  void ParseConflictGraph(const string &filename);
   int ExtractClientID(const char *pkt);
   
 // Data member

@@ -329,7 +329,7 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
   scheduling_mode_(kMaxThroughput), f_stats_("stats.dat"), f_conflict_("conflict.dat"), 
   f_route_("route.dat"), f_executable_("get_assignment.R"), f_route_log_("") {
   int option;
-  bool is_same_channel = false;  // Whether base stations are on the same channel.
+  int is_same_channel = 0;  // 0 for all bs on different channels, 1 for all on same channel, else for read file to parse
   while ((option = getopt(argc, argv, optstring)) > 0) {
     switch(option) {
       case 'C': {
@@ -387,7 +387,7 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
       }
       case 'f': {
         // For initializing confict graph.
-        is_same_channel = bool(atoi(optarg));
+        is_same_channel = atoi(optarg);
         break;
       }
       case 'o': {
@@ -418,8 +418,19 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
     assert(it->second[0]);
   }
   // Construct conflict graph for the route optimizer. 
-  for (auto bs_id : bs_ids_) {
-    conflict_graph_[bs_id] = is_same_channel ? 1 : bs_id;
+  if (is_same_channel == 1) {
+    for (auto bs_id : bs_ids_) {
+      conflict_graph_[bs_id] = 1;
+    }
+  } else if (is_same_channel == 0) {
+    for (auto bs_id : bs_ids_) {
+      conflict_graph_[bs_id] = bs_id;
+    }
+  } else {
+    ParseConflictGraph("conflict.dat");
+    for (auto bs_id : bs_ids_) {
+      printf("%d %d\n", bs_id, conflict_graph_[bs_id]);
+    }
   }
   for (auto it = conflict_graph_.begin(); it != conflict_graph_.end(); ++it) {
     if(packet_scheduler_tbl_.count(it->second) == 0)
@@ -433,6 +444,23 @@ WspaceController::~WspaceController() {
     delete it->second;
   }
 }
+
+
+void WspaceController::ParseConflictGraph(const string &filename) {
+  ifstream ifs(filename.c_str());
+  string line;
+  int i = 0;
+  conflict_graph_.clear();
+  while (getline(ifs, line)) {
+    int bs_id = atoi(line.c_str());
+    char tmp[16] = {0};
+    strcpy(tmp, line.c_str());
+    int contention_id = atoi(strchr(tmp, ' ') + 1);
+    conflict_graph_[bs_id] = contention_id;
+  }
+  ifs.close();
+}
+
 
 void WspaceController::ParseIP(const vector<int> &ids, unordered_map<int, char [16]> &ip_table) {
   if (ids.empty()) {
