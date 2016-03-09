@@ -427,7 +427,7 @@ WspaceController::WspaceController(int argc, char *argv[], const char *optstring
       conflict_graph_[bs_id] = bs_id;
     }
   } else {
-    ParseConflictGraph("conflict.dat");
+    ParseConflictGraph("conflict_config.dat");
     for (auto bs_id : bs_ids_) {
       printf("%d %d\n", bs_id, conflict_graph_[bs_id]);
     }
